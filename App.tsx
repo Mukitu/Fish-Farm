@@ -10,7 +10,6 @@ import PondsPage from './pages/Ponds';
 import ExpensesPage from './pages/Expenses';
 import SalesPage from './pages/Sales';
 import WaterLogsPage from './pages/WaterLogs';
-// Fixed: Removed invalid '?' from import statement which caused syntax errors in subsequent lines
 import ReportsPage from './pages/Reports';
 import FeedLogsPage from './pages/FeedLogs';
 import FeedManagement from './pages/FeedManagement';
@@ -29,10 +28,12 @@ const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onPr
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // যদি পাসওয়ার্ড রিকভারি ইভেন্ট হয়, সরাসরি রিসেট পেজে পাঠিয়ে দাও
         navigate('/reset-password');
       } else if (session) {
         onProfileFetch(session.user.id);
+      } else {
+        // যদি সেশন না থাকে, প্রোফাইল ক্লিয়ার করে দাও
+        onProfileFetch("");
       }
     });
 
@@ -47,9 +48,26 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (id: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
-    if (data) setUser(data as UserProfile);
-    setLoading(false);
+    if (!id) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
+      if (data) {
+        setUser(data as UserProfile);
+      } else {
+        // যদি ডাটা না থাকে, তবে অথ সেশন ক্লিয়ার করে দেওয়া ভালো
+        console.warn("Profile not found for ID:", id);
+        setUser(null);
+      }
+    } catch (e) {
+      console.error("Profile fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

@@ -35,26 +35,55 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
         if (signUpError) throw signUpError;
         
         if (data.user) {
+          // রেজিস্ট্রেশনের সময় প্রোফাইল আপডেট
           await supabase
             .from('profiles')
             .update({ farm_name: farmName, phone: phone })
             .eq('id', data.user.id);
-          navigate('/subscription');
+          
+          setSuccess("অ্যাকাউন্ট তৈরি হয়েছে! দয়া করে ইমেইল ভেরিফাই করুন (যদি প্রয়োজন হয়) অথবা লগইন করুন।");
+          if (type === 'register') navigate('/subscription');
         }
       } else {
+        // লগইন করার চেষ্টা
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (signInError) throw signInError;
+        if (signInError) {
+          if (signInError.message.includes("Invalid login credentials")) {
+            throw new Error("ইমেইল বা পাসওয়ার্ড সঠিক নয়।");
+          } else {
+            throw signInError;
+          }
+        }
 
         if (data.user) {
-          const { data: profile } = await supabase
+          // প্রোফাইল চেক করা
+          let { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
+
+          // যদি প্রোফাইল না থাকে (ট্রিগার ফেইল করলে), নতুন প্রোফাইল তৈরি করা
+          if (!profile || profileError) {
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert([{ 
+                id: data.user.id, 
+                email: data.user.email,
+                subscription_status: SubscriptionStatus.EXPIRED,
+                max_ponds: 0,
+                role: UserRole.FARMER 
+              }])
+              .select()
+              .single();
+            
+            if (createError) throw new Error("আপনার প্রোফাইল তথ্য পাওয়া যাচ্ছে না। অ্যাডমিনের সাথে যোগাযোগ করুন।");
+            profile = newProfile;
+          }
 
           if (profile) {
             onLogin(profile as UserProfile);
@@ -69,7 +98,8 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
         }
       }
     } catch (err: any) {
-      setError("ইমেইল বা পাসওয়ার্ড ভুল অথবা সার্ভার সমস্যা।");
+      console.error(err);
+      setError(err.message || "একটি অজানা সমস্যা হয়েছে। পুনরায় চেষ্টা করুন।");
     } finally {
       setLoading(false);
     }
@@ -81,10 +111,8 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
     setError(null);
     setSuccess(null);
 
-    // redirectTo ইউআরএলটি এখন আরও ডাইনামিক।
-    // Supabase Dashboard এ গিয়ে 'Redirect URLs' সেকশনে আপনার সাইটের ডোমেইন অবশ্যই যোগ করতে হবে।
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.href.split('#')[0], 
+      redirectTo: window.location.origin + '/#/reset-password', 
     });
 
     if (error) {
