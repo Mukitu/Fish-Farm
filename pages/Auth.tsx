@@ -81,8 +81,10 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
     setError(null);
     setSuccess(null);
 
+    // redirectTo ইউআরএলটি এখন আরও ডাইনামিক।
+    // Supabase Dashboard এ গিয়ে 'Redirect URLs' সেকশনে আপনার সাইটের ডোমেইন অবশ্যই যোগ করতে হবে।
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/#/reset-password`,
+      redirectTo: window.location.href.split('#')[0], 
     });
 
     if (error) {

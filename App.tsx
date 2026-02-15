@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, Outlet } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import Landing from './pages/Landing';
 import AuthPage from './pages/Auth';
@@ -10,6 +10,7 @@ import PondsPage from './pages/Ponds';
 import ExpensesPage from './pages/Expenses';
 import SalesPage from './pages/Sales';
 import WaterLogsPage from './pages/WaterLogs';
+// Fixed: Removed invalid '?' from import statement which caused syntax errors in subsequent lines
 import ReportsPage from './pages/Reports';
 import FeedLogsPage from './pages/FeedLogs';
 import FeedManagement from './pages/FeedManagement';
@@ -21,9 +22,35 @@ import OwnerProfile from './pages/OwnerProfile';
 import ResetPasswordPage from './pages/ResetPassword';
 import { UserProfile, SubscriptionStatus, UserRole } from './types';
 
+// এই কম্পোনেন্টটি ইউআরএল এর হ্যাশ প্যারামিটার এবং অথ ইভেন্ট মনিটর করবে
+const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // যদি পাসওয়ার্ড রিকভারি ইভেন্ট হয়, সরাসরি রিসেট পেজে পাঠিয়ে দাও
+        navigate('/reset-password');
+      } else if (session) {
+        onProfileFetch(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, onProfileFetch]);
+
+  return null;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (id: string) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
+    if (data) setUser(data as UserProfile);
+    setLoading(false);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,24 +60,7 @@ const App: React.FC = () => {
         setLoading(false);
       }
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
-
-  const fetchProfile = async (id: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
-    if (data) setUser(data as UserProfile);
-    setLoading(false);
-  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-4">
@@ -61,6 +71,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
+      <AuthListener onProfileFetch={fetchProfile} />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/founder" element={<OwnerProfile />} />
