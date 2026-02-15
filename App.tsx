@@ -134,25 +134,51 @@ const App: React.FC = () => {
 
 const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalPonds: 0 });
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       setLoading(true);
-      const { data: exp } = await supabase.from('expenses').select('amount');
-      const { data: sale } = await supabase.from('sales').select('amount');
+      const { data: exp } = await supabase.from('expenses').select('amount, date');
+      const { data: sale } = await supabase.from('sales').select('amount, date');
       const { count } = await supabase.from('ponds').select('*', { count: 'exact', head: true }).eq('is_archived', false);
       
       const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
       const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
       
       setStats({ totalExp, totalSale, totalPonds: count || 0 });
+
+      // মাসিক চার্ট ডেটা প্রসেসিং (গত ৬ মাস)
+      const months: string[] = [];
+      const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
+      
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      const formattedData = months.map(m => {
+        const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+        const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+        
+        const monthIndex = parseInt(m.split('-')[1]) - 1;
+        return {
+          month: bnMonths[monthIndex],
+          expense: mExp,
+          sale: mSale
+        };
+      });
+
+      setMonthlyData(formattedData);
       setLoading(false);
     };
     fetchStats();
   }, []);
 
   const profit = stats.totalSale - stats.totalExp;
+  const maxVal = Math.max(...monthlyData.map(d => Math.max(d.sale, d.expense)), 1000);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12 font-sans">
@@ -204,6 +230,66 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
               <Link to="/subscription" className="block w-full py-4 bg-slate-50 text-slate-600 rounded-2xl text-center text-xs font-black hover:bg-blue-600 hover:text-white transition-all shadow-inner">প্যাকেজ রিনিউ করুন →</Link>
            </div>
         </div>
+      </div>
+
+      {/* মাসিক আয়-ব্যয় চার্ট সেকশন */}
+      <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+            <div>
+               <h3 className="text-2xl font-black text-slate-800 mb-1">মাসিক লেনদেন বিশ্লেষণ</h3>
+               <p className="text-xs font-bold text-slate-400">গত ৬ মাসের বিক্রয় এবং খরচের চিত্র</p>
+            </div>
+            <div className="flex items-center gap-6">
+               <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                  <span className="text-xs font-black text-slate-600">বিক্রয় (Sales)</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-rose-400 rounded-full"></div>
+                  <span className="text-xs font-black text-slate-600">খরচ (Expenses)</span>
+               </div>
+            </div>
+         </div>
+
+         <div className="relative h-64 w-full flex items-end justify-between px-2 md:px-10 gap-2 md:gap-8">
+            {/* Background Grid Lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03]">
+               <div className="w-full h-px bg-slate-900"></div>
+               <div className="w-full h-px bg-slate-900"></div>
+               <div className="w-full h-px bg-slate-900"></div>
+               <div className="w-full h-px bg-slate-900"></div>
+            </div>
+
+            {loading ? (
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+               </div>
+            ) : monthlyData.map((data, idx) => (
+               <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                  <div className="flex items-end gap-1 md:gap-3 w-full justify-center h-full">
+                     {/* Sales Bar */}
+                     <div 
+                        className="w-3 md:w-8 bg-blue-600 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-blue-700 relative"
+                        style={{ height: `${(data.sale / maxVal) * 100}%`, minHeight: data.sale > 0 ? '4px' : '0' }}
+                     >
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
+                           ৳{data.sale.toLocaleString()}
+                        </div>
+                     </div>
+                     {/* Expense Bar */}
+                     <div 
+                        className="w-3 md:w-8 bg-rose-400 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-rose-500 relative"
+                        style={{ height: `${(data.expense / maxVal) * 100}%`, minHeight: data.expense > 0 ? '4px' : '0' }}
+                     >
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
+                           ৳{data.expense.toLocaleString()}
+                        </div>
+                     </div>
+                  </div>
+                  <p className="mt-6 text-[10px] md:text-xs font-black text-slate-400 group-hover:text-slate-800 transition-colors">{data.month}</p>
+               </div>
+            ))}
+         </div>
       </div>
     </div>
   );
