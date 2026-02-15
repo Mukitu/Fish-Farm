@@ -30,7 +30,6 @@ export interface InventoryItem {
   type: 'খাবার' | 'ওষুধ' | 'অন্যান্য';
   price_per_unit?: number;
   custom_properties?: any;
-  // Fixed: Added missing low_stock_threshold property
   low_stock_threshold: number;
 }
 
@@ -42,15 +41,12 @@ export interface Pond {
   fish_type: string;
   stock_date: string;
   is_active: boolean;
-  is_archived: boolean;
 }
 
-// Fixed: Added missing GrowthRecord interface export
 export interface GrowthRecord {
   id: string;
   user_id: string;
   pond_id: string;
-  pond_name: string;
   avg_weight_gm: number;
   sample_count: number;
   date: string;

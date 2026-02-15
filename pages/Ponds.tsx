@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Pond } from '../types';
 
@@ -16,14 +16,19 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const fetchPonds = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('ponds')
-      .select('*')
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('ponds')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (!error && data) setPonds(data as Pond[]);
-    setLoading(false);
+      if (error) throw error;
+      if (data) setPonds(data as Pond[]);
+    } catch (err) {
+      console.error("Error fetching ponds:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddPond = async () => {
@@ -44,7 +49,6 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           area: parseFloat(newPond.area),
           fish_type: newPond.fish_type,
           is_active: true,
-          is_archived: false,
           stock_date: new Date().toISOString().split('T')[0]
         }
       ]).select();
@@ -130,7 +134,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 <input type="text" value={newPond.fish_type} onChange={e => setNewPond({...newPond, fish_type: e.target.value})} placeholder="উদা: রুই" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black" />
               </div>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-4 pt-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-slate-100 text-slate-600 rounded-[1.5rem] font-black">বাতিল</button>
               <button onClick={handleAddPond} disabled={saving} className="flex-1 py-5 bg-blue-600 text-white rounded-[1.5rem] font-black shadow-xl disabled:opacity-50">
                 {saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ করুন'}

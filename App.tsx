@@ -101,14 +101,18 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   }, []);
 
   const fetchData = async () => {
-    const { data: exp } = await supabase.from('expenses').select('amount');
-    const { data: sale } = await supabase.from('sales').select('amount');
-    const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' }).eq('is_archived', false);
-    
-    if (pondList) setPonds(pondList);
-    const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-    const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-    setStats({ totalExp, totalSale, totalPonds: count || 0 });
+    try {
+      const { data: exp } = await supabase.from('expenses').select('amount');
+      const { data: sale } = await supabase.from('sales').select('amount');
+      const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' });
+      
+      if (pondList) setPonds(pondList);
+      const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+      const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+      setStats({ totalExp, totalSale, totalPonds: count || 0 });
+    } catch (e) {
+      console.error("Dashboard data fetch error:", e);
+    }
   };
 
   const handleSaveMetric = async (e: React.FormEvent) => {
