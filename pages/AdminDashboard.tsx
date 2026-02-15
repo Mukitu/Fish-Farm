@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { UserProfile, SubscriptionStatus } from '../types';
+import { UserProfile, SubscriptionStatus, SUBSCRIPTION_PLANS } from '../types';
 
 const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, onLogout }) => {
   const [payments, setPayments] = useState<any[]>([]);
@@ -9,6 +9,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
   const [selectedMonths, setSelectedMonths] = useState<{ [key: string]: number }>({});
   const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'revenue'>('pending');
   const [stats, setStats] = useState({ revenue: 0, activeUsers: 0 });
+  const [processing, setProcessing] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -36,25 +37,40 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
   };
 
   const handleApprove = async (payment: any) => {
+    setProcessing(payment.id);
     const months = selectedMonths[payment.id];
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + months);
 
-    const { error } = await supabase.from('payments').update({ 
+    // ১. পেমেন্ট স্ট্যাটাস আপডেট
+    const { error: payError } = await supabase.from('payments').update({ 
       status: 'APPROVED',
       months: months
     }).eq('id', payment.id);
 
-    if (!error) {
-      await supabase.from('profiles').update({ 
-        subscription_status: SubscriptionStatus.ACTIVE,
-        expiry_date: expiryDate.toISOString(),
-        max_ponds: payment.plan_id === 999 ? 999 : (payment.plan_id || 1)
-      }).eq('id', payment.user_id);
-
-      alert('সফলভাবে অ্যাপ্রুভ হয়েছে!');
-      fetchData();
+    if (payError) {
+      alert('পেমেন্ট আপডেট করতে সমস্যা হয়েছে।');
+      setProcessing(null);
+      return;
     }
+
+    // ২. প্রোফাইল স্ট্যাটাস এবং ফিচার লিমিট আপডেট
+    const plan = SUBSCRIPTION_PLANS.find(pl => pl.id === payment.plan_id);
+    const maxPonds = plan ? plan.ponds : 1;
+
+    const { error: profError } = await supabase.from('profiles').update({ 
+      subscription_status: SubscriptionStatus.ACTIVE,
+      expiry_date: expiryDate.toISOString(),
+      max_ponds: maxPonds
+    }).eq('id', payment.user_id);
+
+    if (!profError) {
+      alert(`সফলভাবে অ্যাপ্রুভ হয়েছে! ইউজার এখন ড্যাশবোর্ড ব্যবহার করতে পারবেন। মেয়াদ: ${expiryDate.toLocaleDateString('bn-BD')}`);
+      fetchData();
+    } else {
+      alert('প্রোফাইল আপডেট করতে সমস্যা হয়েছে।');
+    }
+    setProcessing(null);
   };
 
   const handleReject = async (id: string) => {
@@ -74,11 +90,11 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
         <div className="flex items-center gap-6">
            <div className="hidden md:flex gap-4 text-xs font-black uppercase tracking-widest text-slate-400">
               <div className="flex flex-col items-end">
-                 <span className="text-green-500">৳ {stats.revenue.toLocaleString()}</span>
+                 <span className="text-green-500 font-black">৳ {stats.revenue.toLocaleString()}</span>
                  <span>মোট আয়</span>
               </div>
               <div className="flex flex-col items-end border-l border-white/10 pl-4">
-                 <span className="text-blue-400">{stats.activeUsers} জন</span>
+                 <span className="text-blue-400 font-black">{stats.activeUsers} জন</span>
                  <span>সক্রিয় খামারি</span>
               </div>
            </div>
@@ -87,7 +103,6 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
       </nav>
 
       <div className="max-w-6xl mx-auto p-6 md:p-12">
-        {/* Tabs */}
         <div className="flex gap-2 mb-10 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
            <TabButton label="পেন্ডিং পেমেন্ট" active={activeTab === 'pending'} onClick={() => setActiveTab('pending')} count={payments.length} />
            <TabButton label="ইউজার তালিকা" active={activeTab === 'users'} onClick={() => setActiveTab('users')} />
@@ -124,7 +139,13 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
                 </div>
 
                 <div className="flex gap-3">
-                  <button onClick={() => handleApprove(p)} className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-105 active:scale-95 transition-all">অ্যাপ্রুভ</button>
+                  <button 
+                    disabled={processing === p.id}
+                    onClick={() => handleApprove(p)} 
+                    className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {processing === p.id ? 'অপেক্ষা...' : 'অ্যাপ্রুভ'}
+                  </button>
                   <button onClick={() => handleReject(p.id)} className="bg-rose-50 text-rose-500 px-6 py-4 rounded-2xl font-black hover:bg-rose-500 hover:text-white transition-all">বাতিল</button>
                 </div>
               </div>
@@ -139,7 +160,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
         )}
 
         {activeTab === 'users' && (
-          <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden animate-in fade-in duration-300">
              <div className="overflow-x-auto">
                 <table className="w-full text-left">
                    <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
@@ -157,7 +178,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
                            <td className="px-8 py-6 font-black text-slate-800">{u.farm_name || 'নামহীন'}</td>
                            <td className="px-8 py-6">
                               <p className="text-sm font-bold">{u.email}</p>
-                              <p className="text-xs text-slate-400">{u.phone}</p>
+                              <p className="text-xs text-slate-400">{u.phone || 'নেই'}</p>
                            </td>
                            <td className="px-8 py-6">
                               <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${u.subscription_status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-600'}`}>
@@ -175,22 +196,22 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
         )}
 
         {activeTab === 'revenue' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-             <div className="bg-blue-600 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in zoom-in-95 duration-300">
+             <div className="bg-blue-600 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform duration-700"></div>
                 <h3 className="text-lg font-bold opacity-80 mb-2">সর্বমোট আয়</h3>
                 <p className="text-6xl font-black tracking-tighter mb-8">৳ {stats.revenue.toLocaleString()}</p>
                 <div className="pt-8 border-t border-white/10 flex justify-between">
-                   <span className="text-xs font-bold">গত ৩০ দিনে প্রবৃদ্ধি:</span>
-                   <span className="text-sm font-black text-green-300">+১২%</span>
+                   <span className="text-xs font-bold">সার্ভার স্ট্যাটাস:</span>
+                   <span className="text-sm font-black text-green-300">অনলাইন (সচল)</span>
                 </div>
              </div>
-             <div className="bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden">
+             <div className="bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
                 <h3 className="text-lg font-bold opacity-80 mb-2">এক্টিভ ইউজার</h3>
                 <p className="text-6xl font-black tracking-tighter mb-8">{stats.activeUsers} <span className="text-2xl font-medium">জন</span></p>
                 <div className="pt-8 border-t border-white/10 flex justify-between">
-                   <span className="text-xs font-bold">সার্ভার স্ট্যাটাস:</span>
-                   <span className="text-sm font-black text-blue-400">অনলাইন (সচল)</span>
+                   <span className="text-xs font-bold">ইউজার প্রবৃদ্ধি:</span>
+                   <span className="text-sm font-black text-blue-400">+১৫%</span>
                 </div>
              </div>
           </div>
@@ -203,7 +224,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
 const TabButton: React.FC<{ label: string; active: boolean; onClick: () => void; count?: number }> = ({ label, active, onClick, count }) => (
   <button 
     onClick={onClick}
-    className={`flex-1 py-4 px-6 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+    className={`flex-1 py-4 px-6 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}
   >
     {label}
     {count !== undefined && count > 0 && (

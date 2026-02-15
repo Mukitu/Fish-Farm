@@ -93,12 +93,7 @@ const App: React.FC = () => {
           user ? (
             user.role === UserRole.ADMIN ? 
             <AdminDashboard user={user} onLogout={() => setUser(null)} /> : 
-            <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-5xl mb-6">🚫</div>
-              <h1 className="text-3xl font-black text-slate-900 mb-2">প্রবেশাধিকার নেই!</h1>
-              <p className="text-slate-500 font-bold mb-8 max-w-sm">অ্যাডমিন প্যানেলে ঢুকতে হলে আপনার অ্যাকাউন্টের রোল 'ADMIN' হতে হবে।</p>
-              <Link to="/dashboard" className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl">ড্যাশবোর্ডে ফিরে যান</Link>
-            </div>
+            <Navigate to="/dashboard" />
           ) : <Navigate to="/login" />
         } />
       </Routes>
@@ -107,31 +102,33 @@ const App: React.FC = () => {
 };
 
 const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
-  const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalWeightSold: 0 });
+  const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalPonds: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      setLoading(true);
       const { data: exp } = await supabase.from('expenses').select('amount');
-      const { data: sale } = await supabase.from('sales').select('amount, weight');
+      const { data: sale } = await supabase.from('sales').select('amount');
+      const { count } = await supabase.from('ponds').select('*', { count: 'exact', head: true }).eq('is_archived', false);
       
       const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
       const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-      const totalWeightSold = sale?.reduce((a, b) => a + Number(b.weight || 0), 0) || 0;
       
-      setStats({ totalExp, totalSale, totalWeightSold });
+      setStats({ totalExp, totalSale, totalPonds: count || 0 });
+      setLoading(false);
     };
     fetchStats();
   }, []);
 
   const profit = stats.totalSale - stats.totalExp;
-  const breakEven = stats.totalWeightSold > 0 ? (stats.totalExp / stats.totalWeightSold).toFixed(2) : '০';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12 font-sans">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className={`bg-white p-10 rounded-[3rem] shadow-sm border-t-8 transition-all hover:shadow-xl ${profit >= 0 ? 'border-green-500' : 'border-rose-500'}`}>
            <div className="flex justify-between items-start mb-8">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">খামারের নীট লাভ/ক্ষতি</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">মোট মুনাফা/ক্ষতি</p>
               <span className={`text-2xl p-3 rounded-2xl ${profit >= 0 ? 'bg-green-50 text-green-500' : 'bg-rose-50 text-rose-500'}`}>{profit >= 0 ? '📈' : '📉'}</span>
            </div>
            <h2 className={`text-5xl font-black tracking-tighter ${profit >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
@@ -149,10 +146,10 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
         <div className="bg-slate-900 p-10 rounded-[3rem] shadow-2xl text-white relative overflow-hidden group">
            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
            <div className="relative z-10">
-              <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.2em] mb-8">টার্গেট ব্রেক-ইভেন দর</p>
-              <h2 className="text-5xl font-black text-white tracking-tighter">৳ {breakEven}</h2>
+              <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.2em] mb-8">মোট পুকুর সংখ্যা</p>
+              <h2 className="text-6xl font-black text-white tracking-tighter">{stats.totalPonds} <span className="text-xl font-medium">টি</span></h2>
               <p className="mt-6 text-xs font-medium text-slate-400 leading-relaxed italic">
-                 মুনাফা করতে প্রতি কেজি গড়ে <span className="text-blue-400 font-black">৳ {breakEven}</span> এর বেশি দামে বিক্রি করতে হবে।
+                 আপনার বর্তমানে <span className="text-blue-400 font-black">{stats.totalPonds}টি</span> পুকুর সচল রয়েছে।
               </p>
            </div>
         </div>
@@ -163,7 +160,7 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
               <div className="flex items-center gap-4 mb-4">
                  <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 text-3xl group-hover:scale-110 transition-transform shadow-inner">👑</div>
                  <div>
-                    <p className="font-black text-slate-800 text-lg leading-none mb-1">{user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds + 'টি'} পুকুর প্যাকেজ</p>
+                    <p className="font-black text-slate-800 text-lg leading-none mb-1">{user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds + 'টি'} পুকুর</p>
                     <p className="text-[10px] text-green-600 font-black uppercase tracking-widest">সক্রিয় সদস্য</p>
                  </div>
               </div>

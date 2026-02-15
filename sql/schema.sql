@@ -1,5 +1,5 @@
 
--- ১. এনাম টাইপ তৈরি (Role and Subscription Status)
+-- ১. এনাম টাইপ তৈরি
 DO $$ BEGIN
     CREATE TYPE user_role AS ENUM ('ADMIN', 'FARMER');
     CREATE TYPE sub_status AS ENUM ('ACTIVE', 'PENDING', 'EXPIRED');
@@ -7,7 +7,7 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- ২. প্রোফাইল টেবিল (Profiles Table)
+-- ২. প্রোফাইল টেবিল
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৩. পেমেন্ট টেবিল (Payments Table)
+-- ৩. পেমেন্ট টেবিল
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৪. পুকুর টেবিল (Ponds Table)
+-- ৪. পুকুর টেবিল
 CREATE TABLE IF NOT EXISTS public.ponds (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.ponds (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৫. খরচ টেবিল (Expenses Table)
+-- ৫. খরচ টেবিল
 CREATE TABLE IF NOT EXISTS public.expenses (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৬. বিক্রি টেবিল (Sales Table)
+-- ৬. বিক্রি টেবিল
 CREATE TABLE IF NOT EXISTS public.sales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৭. ইনভেন্টরি টেবিল (Inventory Table)
+-- ৭. ইনভেন্টরি টেবিল
 CREATE TABLE IF NOT EXISTS public.inventory (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৮. পানির লগ (Water Logs)
+-- ৮. পানির লগ টেবিল
 CREATE TABLE IF NOT EXISTS public.water_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -94,7 +94,30 @@ CREATE TABLE IF NOT EXISTS public.water_logs (
     date TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৯. রো লেভেল সিকিউরিটি (RLS)
+-- ৯. গ্রোথ রেকর্ড টেবিল
+CREATE TABLE IF NOT EXISTS public.growth_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
+    avg_weight_gm DECIMAL NOT NULL,
+    sample_count INTEGER,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ১০. ফিড লগ টেবিল
+CREATE TABLE IF NOT EXISTS public.feed_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
+    feed_item TEXT NOT NULL,
+    amount DECIMAL NOT NULL,
+    time TEXT,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ১১. আরএলএস পলিসি (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
@@ -102,35 +125,37 @@ ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.water_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feed_logs ENABLE ROW LEVEL SECURITY;
 
--- ১০. আরএলএস পলিসি (Policies)
--- Profiles: User can read their own or Admin can read all
-CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Admins can view all profiles" ON public.profiles FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'ADMIN')
-);
+-- পলিসি সেটআপ
+CREATE POLICY "Profiles self access" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Admins full access profiles" ON public.profiles FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'ADMIN'));
 
--- User data: Only owner can access their own records
-CREATE POLICY "Owners can access their records" ON public.ponds FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Owners can access their expenses" ON public.expenses FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Owners can access their sales" ON public.sales FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Owners can access inventory" ON public.inventory FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Owners can access water logs" ON public.water_logs FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records ponds" ON public.ponds FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records expenses" ON public.expenses FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records sales" ON public.sales FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records inventory" ON public.inventory FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records water_logs" ON public.water_logs FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records growth_records" ON public.growth_records FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Owners access records feed_logs" ON public.feed_logs FOR ALL USING (auth.uid() = user_id);
 
--- ১১. ট্র্রিগার ফাংশন (Auth to Profile Sync)
+-- ১২. অটোমেটিক অ্যাডমিন প্রোমোশন
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role, subscription_status)
-  VALUES (new.id, new.email, 'FARMER', 'EXPIRED');
+  IF new.email = 'mukituislamnishat@gmail.com' THEN
+    INSERT INTO public.profiles (id, email, role, subscription_status, max_ponds, expiry_date)
+    VALUES (new.id, new.email, 'ADMIN', 'ACTIVE', 999, '2099-12-31');
+  ELSE
+    INSERT INTO public.profiles (id, email, role, subscription_status, max_ponds)
+    VALUES (new.id, new.email, 'FARMER', 'EXPIRED', 0);
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE TRIGGER on_auth_user_created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
--- ১২. অ্যাডমিন সেটআপ (আপনার ইমেইল অ্যাডমিন করার জন্য এই কুয়েরিটি রান করুন)
--- গুরুত্বপূর্ণ: আগে সাইনআপ করুন, তারপর নিচের কুয়েরিটি রান করুন।
--- UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'mukituislamnishat@gmail.com';
