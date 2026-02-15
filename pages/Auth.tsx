@@ -10,15 +10,17 @@ interface AuthProps {
 }
 
 const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
+  const [view, setView] = useState<'auth' | 'forgot'>( 'auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [farmName, setFarmName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -73,6 +75,24 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/#/reset-password`,
+    });
+
+    if (error) {
+      setError("রিসেট লিঙ্ক পাঠাতে সমস্যা হয়েছে। ইমেইলটি সঠিক কিনা যাচাই করুন।");
+    } else {
+      setSuccess("পাসওয়ার্ড রিসেট লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে। ইনবক্স চেক করুন।");
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
       <div className="bg-white max-w-md w-full rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-500">
@@ -82,45 +102,66 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-xl mx-auto mb-6 hover:rotate-12 transition-transform">🐟</div>
             </Link>
             <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">
-              {type === 'login' ? 'স্বাগতম!' : 'রেজিস্ট্রেশন করুন'}
+              {view === 'forgot' ? 'পাসওয়ার্ড উদ্ধার' : (type === 'login' ? 'স্বাগতম!' : 'রেজিস্ট্রেশন করুন')}
             </h1>
             <p className="text-slate-500 font-bold">
-              {type === 'login' ? 'আপনার অ্যাকাউন্টে লগইন করুন' : 'মৎস্য চাষের নতুন ডিজিটাল যাত্রা শুরু করুন'}
+              {view === 'forgot' ? 'আপনার রেজিস্টার্ড ইমেইল দিন' : (type === 'login' ? 'আপনার অ্যাকাউন্টে লগইন করুন' : 'মৎস্য চাষের নতুন ডিজিটাল যাত্রা শুরু করুন')}
             </p>
           </div>
 
-          {error && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold flex items-center gap-3 animate-in shake duration-300">
-              <span>⚠️</span> {error}
+          {(error || success) && (
+            <div className={`p-4 rounded-2xl mb-6 text-sm font-bold flex items-center gap-3 animate-in shake duration-300 ${error ? 'bg-rose-50 border border-rose-100 text-rose-600' : 'bg-green-50 border border-green-100 text-green-600'}`}>
+              <span>{error ? '⚠️' : '✅'}</span> {error || success}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {type === 'register' && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খামারের নাম</label>
-                  <input type="text" required value={farmName} onChange={e => setFarmName(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="উদা: নিশান ফিশ ফার্ম" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">মোবাইল নম্বর</label>
-                  <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="০১৭XXXXXXXX" />
-                </div>
-              </>
-            )}
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ইমেইল ঠিকানা</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="example@mail.com" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পাসওয়ার্ড</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="********" />
-            </div>
+          {view === 'auth' ? (
+            <form onSubmit={handleAuth} className="space-y-5">
+              {type === 'register' && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খামারের নাম</label>
+                    <input type="text" required value={farmName} onChange={e => setFarmName(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="উদা: নিশান ফিশ ফার্ম" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">মোবাইল নম্বর</label>
+                    <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="০১৭XXXXXXXX" />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ইমেইল ঠিকানা</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="example@mail.com" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পাসওয়ার্ড</label>
+                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="********" />
+              </div>
 
-            <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 mt-4">
-              {loading ? 'অপেক্ষা করুন...' : (type === 'login' ? 'লগইন' : 'অ্যাকাউন্ট তৈরি করুন')}
-            </button>
-          </form>
+              {type === 'login' && (
+                <div className="text-right">
+                  <button type="button" onClick={() => setView('forgot')} className="text-xs font-bold text-blue-600 hover:underline">পাসওয়ার্ড ভুলে গেছেন?</button>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 mt-4">
+                {loading ? 'অপেক্ষা করুন...' : (type === 'login' ? 'লগইন' : 'অ্যাকাউন্ট তৈরি করুন')}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ইমেইল ঠিকানা</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold" placeholder="আপনার রেজিস্টার্ড ইমেইল দিন" />
+              </div>
+
+              <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 mt-4">
+                {loading ? 'অপেক্ষা করুন...' : 'রিসেট লিঙ্ক পাঠান'}
+              </button>
+              
+              <button type="button" onClick={() => setView('auth')} className="w-full text-slate-400 font-bold text-sm hover:text-slate-600 transition-colors">ফিরে যান</button>
+            </form>
+          )}
 
           <div className="mt-8 text-center text-slate-400 font-bold text-sm">
             {type === 'login' ? (

@@ -18,6 +18,7 @@ import GrowthRecordsPage from './pages/GrowthRecords';
 import AdvisoryPage from './pages/Advisory';
 import AdminDashboard from './pages/AdminDashboard';
 import OwnerProfile from './pages/OwnerProfile';
+import ResetPasswordPage from './pages/ResetPassword';
 import { UserProfile, SubscriptionStatus, UserRole } from './types';
 
 const App: React.FC = () => {
@@ -65,6 +66,7 @@ const App: React.FC = () => {
         <Route path="/founder" element={<OwnerProfile />} />
         <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} />} />
         <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         
         <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" />} />
         
