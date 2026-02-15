@@ -10,7 +10,7 @@ interface AuthProps {
 }
 
 const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
-  const [view, setView] = useState<'auth' | 'forgot'>( 'auth');
+  const [view, setView] = useState<'auth' | 'forgot'>('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [farmName, setFarmName] = useState('');
@@ -36,13 +36,15 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
         
         if (data.user) {
           // রেজিস্ট্রেশনের সময় প্রোফাইল আপডেট
-          await supabase
+          const { error: updateError } = await supabase
             .from('profiles')
             .update({ farm_name: farmName, phone: phone })
             .eq('id', data.user.id);
           
-          setSuccess("অ্যাকাউন্ট তৈরি হয়েছে! দয়া করে ইমেইল ভেরিফাই করুন (যদি প্রয়োজন হয়) অথবা লগইন করুন।");
-          if (type === 'register') navigate('/subscription');
+          if (updateError) console.error("Profile update failed:", updateError);
+          
+          setSuccess("অ্যাকাউন্ট তৈরি হয়েছে! আপনি এখন লগইন করতে পারেন।");
+          setView('auth');
         }
       } else {
         // লগইন করার চেষ্টা
@@ -60,15 +62,19 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
         }
 
         if (data.user) {
-          // প্রোফাইল চেক করা
+          // প্রোফাইল চেক করার আগে ১ সেকেন্ড অপেক্ষা করা (সেশন সিঙ্ক হওয়ার জন্য)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
           let { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
 
-          // যদি প্রোফাইল না থাকে (ট্রিগার ফেইল করলে), নতুন প্রোফাইল তৈরি করা
+          // যদি প্রোফাইল না থাকে, ম্যানুয়ালি তৈরি করার চেষ্টা
           if (!profile || profileError) {
+            console.log("প্রোফাইল পাওয়া যায়নি, ম্যানুয়ালি তৈরি করা হচ্ছে...");
+            
             const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert([{ 
@@ -81,7 +87,10 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
               .select()
               .single();
             
-            if (createError) throw new Error("আপনার প্রোফাইল তথ্য পাওয়া যাচ্ছে না। অ্যাডমিনের সাথে যোগাযোগ করুন।");
+            if (createError) {
+               console.error("Critical Profile Error:", createError);
+               throw new Error("আপনার প্রোফাইল ডাটাবেজে তৈরি করা যাচ্ছে না। অনুগ্রহ করে নিশ্চিত করুন যে আপনি Supabase SQL Editor এ schema.sql রান করেছেন।");
+            }
             profile = newProfile;
           }
 
@@ -98,7 +107,7 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
         }
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Auth Error Detail:", err);
       setError(err.message || "একটি অজানা সমস্যা হয়েছে। পুনরায় চেষ্টা করুন।");
     } finally {
       setLoading(false);
