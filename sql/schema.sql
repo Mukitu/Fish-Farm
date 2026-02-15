@@ -1,8 +1,37 @@
 
--- ১. এনাম ও প্রোফাইল অলরেডি থাকলে তা ঠিক রাখা
--- (আগের পার্টের কোড এখানে ধরে নেওয়া হয়েছে)
+-- ১. এনাম ও প্রোফাইল টেবিল সেটআপ (Infinite Recursion মুক্ত)
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('ADMIN', 'FARMER');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sub_status') THEN
+        CREATE TYPE sub_status AS ENUM ('ACTIVE', 'PENDING', 'EXPIRED');
+    END IF;
+END $$;
 
--- ২. পুকুর টেবিল (Ponds)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    role user_role DEFAULT 'FARMER',
+    subscription_status sub_status DEFAULT 'EXPIRED',
+    expiry_date TIMESTAMPTZ,
+    max_ponds INTEGER DEFAULT 0,
+    farm_name TEXT,
+    phone TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.check_is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN (SELECT (role = 'ADMIN') FROM public.profiles WHERE id = auth.uid());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ২. সকল ডাটা টেবিল তৈরি
 CREATE TABLE IF NOT EXISTS public.ponds (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -15,7 +44,6 @@ CREATE TABLE IF NOT EXISTS public.ponds (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৩. খরচের টেবিল (Expenses)
 CREATE TABLE IF NOT EXISTS public.expenses (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -28,7 +56,6 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৪. বিক্রির টেবিল (Sales)
 CREATE TABLE IF NOT EXISTS public.sales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -40,7 +67,6 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৫. পানির লগ (Water Logs)
 CREATE TABLE IF NOT EXISTS public.water_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -51,7 +77,6 @@ CREATE TABLE IF NOT EXISTS public.water_logs (
     date TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৬. খাবার প্রয়োগ লগ (Feed Logs)
 CREATE TABLE IF NOT EXISTS public.feed_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -63,7 +88,6 @@ CREATE TABLE IF NOT EXISTS public.feed_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৭. ইনভেন্টরি (Inventory)
 CREATE TABLE IF NOT EXISTS public.inventory (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -75,7 +99,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৮. গ্রোথ রেকর্ড (Growth Records)
 CREATE TABLE IF NOT EXISTS public.growth_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -85,36 +108,19 @@ CREATE TABLE IF NOT EXISTS public.growth_records (
     date DATE DEFAULT CURRENT_DATE
 );
 
--- ৯. পেমেন্ট টেবিল (Payments)
-CREATE TABLE IF NOT EXISTS public.payments (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    plan_id INTEGER,
-    amount DECIMAL NOT NULL,
-    trx_id TEXT UNIQUE NOT NULL,
-    months INTEGER DEFAULT 1,
-    status TEXT DEFAULT 'PENDING',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- সকল টেবিলে RLS এনাবল করা
-ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.water_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feed_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.growth_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
-
--- প্রত্যেক ইউজার শুধুমাত্র নিজের ডাটা দেখতে/মুছতে পারবে (সহজ পলিসি)
+-- ৩. সকল টেবিলে RLS পলিসি প্রয়োগ (সহজ এবং কার্যকর)
 DO $$ 
 DECLARE 
     t text;
+    tables text[] := ARRAY['profiles', 'ponds', 'expenses', 'sales', 'water_logs', 'feed_logs', 'inventory', 'growth_records'];
 BEGIN
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('ponds', 'expenses', 'sales', 'water_logs', 'feed_logs', 'inventory', 'growth_records', 'payments')
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Owner access %I" ON public.%I', t, t);
-        EXECUTE format('CREATE POLICY "Owner access %I" ON public.%I FOR ALL USING (auth.uid() = user_id)', t, t);
+    FOR t IN SELECT unnest(tables) LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS "User access own %I" ON public.%I', t, t);
+        IF t = 'profiles' THEN
+          EXECUTE format('CREATE POLICY "User access own profiles" ON public.profiles FOR ALL USING (auth.uid() = id)');
+        ELSE
+          EXECUTE format('CREATE POLICY "User access own %I" ON public.%I FOR ALL USING (auth.uid() = user_id)', t, t);
+        END IF;
     END LOOP;
 END $$;
