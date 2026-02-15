@@ -21,7 +21,6 @@ import OwnerProfile from './pages/OwnerProfile';
 import ResetPasswordPage from './pages/ResetPassword';
 import { UserProfile, SubscriptionStatus, UserRole } from './types';
 
-// এই কম্পোনেন্টটি ইউআরএল এর হ্যাশ প্যারামিটার এবং অথ ইভেন্ট মনিটর করবে
 const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
   const navigate = useNavigate();
 
@@ -32,7 +31,6 @@ const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onPr
       } else if (session) {
         onProfileFetch(session.user.id);
       } else {
-        // যদি সেশন না থাকে, প্রোফাইল ক্লিয়ার করে দাও
         onProfileFetch("");
       }
     });
@@ -46,6 +44,7 @@ const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onPr
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchProfile = async (id: string) => {
     if (!id) {
@@ -55,16 +54,47 @@ const App: React.FC = () => {
     }
 
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
+      // ১. প্রোফাইল চেক করা
+      let { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      // ২. যদি প্রোফাইল না থাকে (Auto-Repair Logic)
+      if (!data) {
+        console.log("প্রোফাইল পাওয়া যায়নি, অটোমেটিক তৈরি করা হচ্ছে...");
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (authUser) {
+          const isOwner = authUser.email === 'mukituislamnishat@gmail.com';
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .upsert([{ 
+              id: authUser.id, 
+              email: authUser.email,
+              role: isOwner ? UserRole.ADMIN : UserRole.FARMER,
+              subscription_status: isOwner ? SubscriptionStatus.ACTIVE : SubscriptionStatus.EXPIRED,
+              max_ponds: isOwner ? 999 : 0,
+              expiry_date: isOwner ? '2099-12-31' : null
+            }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          data = newProfile;
+        }
+      }
+
       if (data) {
         setUser(data as UserProfile);
+        setError(null);
       } else {
-        // যদি ডাটা না থাকে, তবে অথ সেশন ক্লিয়ার করে দেওয়া ভালো
-        console.warn("Profile not found for ID:", id);
-        setUser(null);
+        setError("আপনার প্রোফাইল তথ্য ডাটাবেজে পাওয়া যাচ্ছে না।");
       }
-    } catch (e) {
-      console.error("Profile fetch error:", e);
+    } catch (e: any) {
+      console.error("Profile Error:", e);
+      setError("সিস্টেমে ত্রুটি হয়েছে: " + (e.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -84,6 +114,20 @@ const App: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       <p className="font-black text-blue-600 animate-pulse">লোড হচ্ছে...</p>
+    </div>
+  );
+
+  if (error && !user) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+       <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-md w-full text-center border border-rose-100">
+          <div className="text-5xl mb-6">⚠️</div>
+          <h2 className="text-2xl font-black text-slate-800 mb-4">প্রোফাইল এরর</h2>
+          <p className="text-slate-500 font-bold mb-8">{error}</p>
+          <div className="space-y-3">
+             <button onClick={() => window.location.reload()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">পুনরায় চেষ্টা করুন</button>
+             <button onClick={() => supabase.auth.signOut()} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">লগআউট করুন</button>
+          </div>
+       </div>
     </div>
   );
 
@@ -149,7 +193,6 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
       
       setStats({ totalExp, totalSale, totalPonds: count || 0 });
 
-      // মাসিক চার্ট ডেটা প্রসেসিং (গত ৬ মাস)
       const months: string[] = [];
       const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
       
@@ -162,13 +205,8 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
       const formattedData = months.map(m => {
         const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
         const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
-        
         const monthIndex = parseInt(m.split('-')[1]) - 1;
-        return {
-          month: bnMonths[monthIndex],
-          expense: mExp,
-          sale: mSale
-        };
+        return { month: bnMonths[monthIndex], expense: mExp, sale: mSale };
       });
 
       setMonthlyData(formattedData);
@@ -232,7 +270,6 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
         </div>
       </div>
 
-      {/* মাসিক আয়-ব্যয় চার্ট সেকশন */}
       <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
             <div>
@@ -252,7 +289,6 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
          </div>
 
          <div className="relative h-64 w-full flex items-end justify-between px-2 md:px-10 gap-2 md:gap-8">
-            {/* Background Grid Lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03]">
                <div className="w-full h-px bg-slate-900"></div>
                <div className="w-full h-px bg-slate-900"></div>
@@ -267,23 +303,11 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
             ) : monthlyData.map((data, idx) => (
                <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                   <div className="flex items-end gap-1 md:gap-3 w-full justify-center h-full">
-                     {/* Sales Bar */}
-                     <div 
-                        className="w-3 md:w-8 bg-blue-600 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-blue-700 relative"
-                        style={{ height: `${(data.sale / maxVal) * 100}%`, minHeight: data.sale > 0 ? '4px' : '0' }}
-                     >
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                           ৳{data.sale.toLocaleString()}
-                        </div>
+                     <div className="w-3 md:w-8 bg-blue-600 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-blue-700 relative" style={{ height: `${(data.sale / maxVal) * 100}%`, minHeight: data.sale > 0 ? '4px' : '0' }}>
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">৳{data.sale.toLocaleString()}</div>
                      </div>
-                     {/* Expense Bar */}
-                     <div 
-                        className="w-3 md:w-8 bg-rose-400 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-rose-500 relative"
-                        style={{ height: `${(data.expense / maxVal) * 100}%`, minHeight: data.expense > 0 ? '4px' : '0' }}
-                     >
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                           ৳{data.expense.toLocaleString()}
-                        </div>
+                     <div className="w-3 md:w-8 bg-rose-400 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-rose-500 relative" style={{ height: `${(data.expense / maxVal) * 100}%`, minHeight: data.expense > 0 ? '4px' : '0' }}>
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">৳{data.expense.toLocaleString()}</div>
                      </div>
                   </div>
                   <p className="mt-6 text-[10px] md:text-xs font-black text-slate-400 group-hover:text-slate-800 transition-colors">{data.month}</p>

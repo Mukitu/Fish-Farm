@@ -23,54 +23,54 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- আরএলএস পলিসি রিসেট
+-- আরএলএস এনাবল করা
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- রিকার্সন এড়ানোর জন্য পলিসিগুলো পরিষ্কার করা হয়েছে
+-- পুরাতন পলিসি পরিষ্কার করা
 DROP POLICY IF EXISTS "Profiles self access" ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Admins full access profiles" ON public.profiles;
 
--- ১. ইউজার নিজে নিজের প্রোফাইল দেখতে পারবে
+-- ১. যে কেউ নিজের প্রোফাইল দেখতে পারবে
 CREATE POLICY "Profiles self access" ON public.profiles 
 FOR SELECT USING (auth.uid() = id);
 
--- ২. ইউজার নিজে নিজের প্রোফাইল ইনসার্ট করতে পারবে (লগইনের সময় প্রোফাইল না থাকলে এটি দরকার)
+-- ২. যে কেউ নিজের প্রোফাইল ইনসার্ট/তৈরি করতে পারবে (সবচেয়ে গুরুত্বপূর্ণ)
 CREATE POLICY "Users can insert own profile" ON public.profiles 
 FOR INSERT WITH CHECK (auth.uid() = id);
 
--- ৩. ইউজার নিজে নিজের প্রোফাইল আপডেট করতে পারবে
+-- ৩. যে কেউ নিজের প্রোফাইল আপডেট করতে পারবে
 CREATE POLICY "Users can update own profile" ON public.profiles 
 FOR UPDATE USING (auth.uid() = id);
 
--- ৪. অ্যাডমিনরা সব প্রোফাইল দেখতে ও এডিট করতে পারবে (রিকার্সন ছাড়া)
+-- ৪. অ্যাডমিন এক্সেস (রিকার্সন ছাড়া)
 CREATE POLICY "Admins full access profiles" ON public.profiles 
 FOR ALL USING ( (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN' );
 
--- অন্যান্য টেবিলের পলিসি (সংক্ষিপ্ত আকারে সচল রাখা হলো)
+-- অন্যান্য টেবিলের আরএলএস (সংক্ষিপ্ত)
 ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Owners access records ponds" ON public.ponds;
 CREATE POLICY "Owners access records ponds" ON public.ponds FOR ALL USING (auth.uid() = user_id);
 
--- অটোমেটিক প্রোফাইল হ্যান্ডলার ফাংশন
+-- ৫. অটোমেটিক প্রোফাইল হ্যান্ডলার ফাংশন
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   IF new.email = 'mukituislamnishat@gmail.com' THEN
     INSERT INTO public.profiles (id, email, role, subscription_status, max_ponds, expiry_date)
     VALUES (new.id, new.email, 'ADMIN', 'ACTIVE', 999, '2099-12-31')
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
   ELSE
     INSERT INTO public.profiles (id, email, role, subscription_status, max_ponds)
     VALUES (new.id, new.email, 'FARMER', 'EXPIRED', 0)
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ট্রিগার সেটআপ
+-- ৬. ট্রিগার সেটআপ
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
