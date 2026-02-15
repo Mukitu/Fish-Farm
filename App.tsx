@@ -59,11 +59,13 @@ const App: React.FC = () => {
         .from('profiles')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
 
       // ২. যদি প্রোফাইল না থাকে (Auto-Repair Logic)
       if (!data) {
-        console.log("প্রোফাইল পাওয়া যায়নি, অটোমেটিক তৈরি করা হচ্ছে...");
+        console.log("প্রোফাইল পাওয়া যায়নি, অটোমেটিক তৈরি করার চেষ্টা চলছে...");
         const { data: { user: authUser } } = await supabase.auth.getUser();
         
         if (authUser) {
@@ -81,7 +83,10 @@ const App: React.FC = () => {
             .select()
             .single();
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error("Auto-Repair Insert Error:", insertError);
+            throw new Error("আপনার প্রোফাইল ডাটাবেজে তৈরি করা যাচ্ছে না। অনুগ্রহ করে SQL Editor এ schema.sql রান করুন।");
+          }
           data = newProfile;
         }
       }
@@ -93,8 +98,13 @@ const App: React.FC = () => {
         setError("আপনার প্রোফাইল তথ্য ডাটাবেজে পাওয়া যাচ্ছে না।");
       }
     } catch (e: any) {
-      console.error("Profile Error:", e);
-      setError("সিস্টেমে ত্রুটি হয়েছে: " + (e.message || "Unknown error"));
+      console.error("Profile Fetching Error:", e);
+      // RLS Recursion এরর হ্যান্ডেল করা
+      if (e.message?.includes("infinite recursion")) {
+        setError("ডাটাবেজ পলিসি এরর: 'infinite recursion' পাওয়া গেছে। অনুগ্রহ করে SQL Editor এ schema.sql পুনরায় রান করুন।");
+      } else {
+        setError("সিস্টেমে ত্রুটি হয়েছে: " + (e.message || "Unknown error"));
+      }
     } finally {
       setLoading(false);
     }
@@ -117,6 +127,7 @@ const App: React.FC = () => {
     </div>
   );
 
+  // যদি লগইন থাকে কিন্তু এরর দেখায় (প্রোফাইল না পাওয়ায়)
   if (error && !user) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
        <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-md w-full text-center border border-rose-100">
@@ -124,8 +135,12 @@ const App: React.FC = () => {
           <h2 className="text-2xl font-black text-slate-800 mb-4">প্রোফাইল এরর</h2>
           <p className="text-slate-500 font-bold mb-8">{error}</p>
           <div className="space-y-3">
-             <button onClick={() => window.location.reload()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">পুনরায় চেষ্টা করুন</button>
-             <button onClick={() => supabase.auth.signOut()} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">লগআউট করুন</button>
+             <button onClick={() => window.location.reload()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all">পুনরায় চেষ্টা করুন</button>
+             <button onClick={() => {
+                supabase.auth.signOut().then(() => {
+                  window.location.href = "/";
+                });
+             }} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">লগআউট করুন</button>
           </div>
        </div>
     </div>
@@ -184,33 +199,38 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   useEffect(() => {
     const fetchStats = async () => {
       setLoading(true);
-      const { data: exp } = await supabase.from('expenses').select('amount, date');
-      const { data: sale } = await supabase.from('sales').select('amount, date');
-      const { count } = await supabase.from('ponds').select('*', { count: 'exact', head: true }).eq('is_archived', false);
-      
-      const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-      const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-      
-      setStats({ totalExp, totalSale, totalPonds: count || 0 });
+      try {
+        const { data: exp } = await supabase.from('expenses').select('amount, date');
+        const { data: sale } = await supabase.from('sales').select('amount, date');
+        const { count } = await supabase.from('ponds').select('*', { count: 'exact', head: true }).eq('is_archived', false);
+        
+        const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+        const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+        
+        setStats({ totalExp, totalSale, totalPonds: count || 0 });
 
-      const months: string[] = [];
-      const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
-      
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        const months: string[] = [];
+        const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
+        
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+
+        const formattedData = months.map(m => {
+          const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+          const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+          const monthIndex = parseInt(m.split('-')[1]) - 1;
+          return { month: bnMonths[monthIndex], expense: mExp, sale: mSale };
+        });
+
+        setMonthlyData(formattedData);
+      } catch (e) {
+        console.error("Stats fetching error:", e);
+      } finally {
+        setLoading(false);
       }
-
-      const formattedData = months.map(m => {
-        const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
-        const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
-        const monthIndex = parseInt(m.split('-')[1]) - 1;
-        return { month: bnMonths[monthIndex], expense: mExp, sale: mSale };
-      });
-
-      setMonthlyData(formattedData);
-      setLoading(false);
     };
     fetchStats();
   }, []);
