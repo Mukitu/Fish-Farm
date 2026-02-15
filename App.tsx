@@ -19,7 +19,7 @@ import AdvisoryPage from './pages/Advisory';
 import AdminDashboard from './pages/AdminDashboard';
 import OwnerProfile from './pages/OwnerProfile';
 import ResetPasswordPage from './pages/ResetPassword';
-import { UserProfile, SubscriptionStatus, UserRole } from './types';
+import { UserProfile, SubscriptionStatus, UserRole, Pond } from './types';
 
 const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
   const navigate = useNavigate();
@@ -54,7 +54,6 @@ const App: React.FC = () => {
     }
 
     try {
-      // ১. প্রোফাইল চেক করা
       let { data, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -63,11 +62,8 @@ const App: React.FC = () => {
 
       if (fetchError) throw fetchError;
 
-      // ২. যদি প্রোফাইল না থাকে (Auto-Repair Logic)
       if (!data) {
-        console.log("প্রোফাইল পাওয়া যায়নি, অটোমেটিক তৈরি করার চেষ্টা চলছে...");
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        
         if (authUser) {
           const isOwner = authUser.email === 'mukituislamnishat@gmail.com';
           const { data: newProfile, error: insertError } = await supabase
@@ -83,10 +79,7 @@ const App: React.FC = () => {
             .select()
             .single();
 
-          if (insertError) {
-            console.error("Auto-Repair Insert Error:", insertError);
-            throw new Error("আপনার প্রোফাইল ডাটাবেজে তৈরি করা যাচ্ছে না। অনুগ্রহ করে SQL Editor এ schema.sql রান করুন।");
-          }
+          if (insertError) throw insertError;
           data = newProfile;
         }
       }
@@ -94,17 +87,10 @@ const App: React.FC = () => {
       if (data) {
         setUser(data as UserProfile);
         setError(null);
-      } else {
-        setError("আপনার প্রোফাইল তথ্য ডাটাবেজে পাওয়া যাচ্ছে না।");
       }
     } catch (e: any) {
       console.error("Profile Fetching Error:", e);
-      // RLS Recursion এরর হ্যান্ডেল করা
-      if (e.message?.includes("infinite recursion")) {
-        setError("ডাটাবেজ পলিসি এরর: 'infinite recursion' পাওয়া গেছে। অনুগ্রহ করে SQL Editor এ schema.sql পুনরায় রান করুন।");
-      } else {
-        setError("সিস্টেমে ত্রুটি হয়েছে: " + (e.message || "Unknown error"));
-      }
+      setError("সিস্টেমে ত্রুটি হয়েছে: " + (e.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -124,25 +110,6 @@ const App: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       <p className="font-black text-blue-600 animate-pulse">লোড হচ্ছে...</p>
-    </div>
-  );
-
-  // যদি লগইন থাকে কিন্তু এরর দেখায় (প্রোফাইল না পাওয়ায়)
-  if (error && !user) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-       <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-md w-full text-center border border-rose-100">
-          <div className="text-5xl mb-6">⚠️</div>
-          <h2 className="text-2xl font-black text-slate-800 mb-4">প্রোফাইল এরর</h2>
-          <p className="text-slate-500 font-bold mb-8">{error}</p>
-          <div className="space-y-3">
-             <button onClick={() => window.location.reload()} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all">পুনরায় চেষ্টা করুন</button>
-             <button onClick={() => {
-                supabase.auth.signOut().then(() => {
-                  window.location.href = "/";
-                });
-             }} className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">লগআউট করুন</button>
-          </div>
-       </div>
     </div>
   );
 
@@ -195,45 +162,75 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalPonds: 0 });
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ponds, setPonds] = useState<Pond[]>([]);
+  
+  // Water Metric Form State
+  const [metricForm, setMetricForm] = useState({ pond_id: '', oxygen: '', ph: '', temp: '' });
+  const [savingMetric, setSavingMetric] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const { data: exp } = await supabase.from('expenses').select('amount, date');
-        const { data: sale } = await supabase.from('sales').select('amount, date');
-        const { count } = await supabase.from('ponds').select('*', { count: 'exact', head: true }).eq('is_archived', false);
-        
-        const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-        const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-        
-        setStats({ totalExp, totalSale, totalPonds: count || 0 });
-
-        const months: string[] = [];
-        const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
-        
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date();
-          d.setMonth(d.getMonth() - i);
-          months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-        }
-
-        const formattedData = months.map(m => {
-          const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
-          const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
-          const monthIndex = parseInt(m.split('-')[1]) - 1;
-          return { month: bnMonths[monthIndex], expense: mExp, sale: mSale };
-        });
-
-        setMonthlyData(formattedData);
-      } catch (e) {
-        console.error("Stats fetching error:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
   }, []);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const { data: exp } = await supabase.from('expenses').select('amount, date');
+      const { data: sale } = await supabase.from('sales').select('amount, date');
+      const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' }).eq('is_archived', false);
+      
+      if (pondList) setPonds(pondList);
+
+      const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+      const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
+      
+      setStats({ totalExp, totalSale, totalPonds: count || 0 });
+
+      const months: string[] = [];
+      const bnMonths = ["জানু", "ফেব", "মার্চ", "এপ্রি", "মে", "জুন", "জুল", "আগ", "সেপ্ট", "অক্টো", "নভে", "ডিসে"];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      const formattedData = months.map(m => {
+        const mExp = exp?.filter(e => e.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+        const mSale = sale?.filter(s => s.date.startsWith(m)).reduce((a, b) => a + Number(b.amount), 0) || 0;
+        const monthIndex = parseInt(m.split('-')[1]) - 1;
+        return { month: bnMonths[monthIndex], expense: mExp, sale: mSale };
+      });
+      setMonthlyData(formattedData);
+    } catch (e) {
+      console.error("Stats fetching error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveMetric = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!metricForm.pond_id) return alert('পুকুর নির্বাচন করুন');
+    
+    setSavingMetric(true);
+    const { error } = await supabase.from('water_logs').insert([{
+      user_id: user.id,
+      pond_id: metricForm.pond_id,
+      oxygen: parseFloat(metricForm.oxygen || '0'),
+      ph: parseFloat(metricForm.ph || '0'),
+      temp: parseFloat(metricForm.temp || '0')
+    }]);
+
+    setSavingMetric(false);
+    if (error) {
+      alert("ত্রুটি: " + error.message);
+    } else {
+      setShowSuccess(true);
+      setMetricForm({ pond_id: '', oxygen: '', ph: '', temp: '' });
+      setTimeout(() => setShowSuccess(false), 3000);
+    }
+  };
 
   const profit = stats.totalSale - stats.totalExp;
   const maxVal = Math.max(...monthlyData.map(d => Math.max(d.sale, d.expense)), 1000);
@@ -241,6 +238,7 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12 font-sans">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Stat Cards */}
         <div className={`bg-white p-10 rounded-[3rem] shadow-sm border-t-8 transition-all hover:shadow-xl ${profit >= 0 ? 'border-green-500' : 'border-rose-500'}`}>
            <div className="flex justify-between items-start mb-8">
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">মোট মুনাফা/ক্ষতি</p>
@@ -249,23 +247,12 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
            <h2 className={`text-5xl font-black tracking-tighter ${profit >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
               ৳ {Math.abs(profit).toLocaleString()}
            </h2>
-           <p className="mt-4 text-xs font-bold text-slate-400 flex items-center gap-2">
-              {profit >= 0 ? (
-                <><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> আপনি বর্তমানে লাভে আছেন</>
-              ) : (
-                <><span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span> খরচ বিক্রির চেয়ে বেশি (ক্ষতি)</>
-              )}
-           </p>
         </div>
 
-        <div className="bg-slate-900 p-10 rounded-[3rem] shadow-2xl text-white relative overflow-hidden group">
-           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
+        <div className="bg-slate-900 p-10 rounded-[3rem] shadow-2xl text-white relative overflow-hidden">
            <div className="relative z-10">
               <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.2em] mb-8">মোট পুকুর সংখ্যা</p>
               <h2 className="text-6xl font-black text-white tracking-tighter">{stats.totalPonds} <span className="text-xl font-medium">টি</span></h2>
-              <p className="mt-6 text-xs font-medium text-slate-400 leading-relaxed italic">
-                 আপনার বর্তমানে <span className="text-blue-400 font-black">{stats.totalPonds}টি</span> পুকুর সচল রয়েছে।
-              </p>
            </div>
         </div>
 
@@ -273,67 +260,110 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
            <div>
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">প্যাকেজ স্ট্যাটাস</p>
               <div className="flex items-center gap-4 mb-4">
-                 <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 text-3xl group-hover:scale-110 transition-transform shadow-inner">👑</div>
+                 <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 text-3xl">👑</div>
                  <div>
                     <p className="font-black text-slate-800 text-lg leading-none mb-1">{user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds + 'টি'} পুকুর</p>
                     <p className="text-[10px] text-green-600 font-black uppercase tracking-widest">সক্রিয় সদস্য</p>
                  </div>
               </div>
            </div>
-           <div className="pt-6 border-t border-slate-50">
-              <div className="flex justify-between items-center mb-4">
-                 <span className="text-xs font-bold text-slate-500">মেয়াদ শেষ:</span>
-                 <span className="text-sm font-black text-slate-800">{user.expiry_date ? new Date(user.expiry_date).toLocaleDateString('bn-BD') : 'নেই'}</span>
-              </div>
-              <Link to="/subscription" className="block w-full py-4 bg-slate-50 text-slate-600 rounded-2xl text-center text-xs font-black hover:bg-blue-600 hover:text-white transition-all shadow-inner">প্যাকেজ রিনিউ করুন →</Link>
-           </div>
         </div>
       </div>
 
-      <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Graph Section */}
+        <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
             <div>
-               <h3 className="text-2xl font-black text-slate-800 mb-1">মাসিক লেনদেন বিশ্লেষণ</h3>
-               <p className="text-xs font-bold text-slate-400">গত ৬ মাসের বিক্রয় এবং খরচের চিত্র</p>
+              <h3 className="text-2xl font-black text-slate-800 mb-1">মাসিক লেনদেন বিশ্লেষণ</h3>
+              <p className="text-xs font-bold text-slate-400">গত ৬ মাসের বিক্রয় এবং খরচের চিত্র</p>
             </div>
-            <div className="flex items-center gap-6">
-               <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                  <span className="text-xs font-black text-slate-600">বিক্রয় (Sales)</span>
-               </div>
-               <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-rose-400 rounded-full"></div>
-                  <span className="text-xs font-black text-slate-600">খরচ (Expenses)</span>
-               </div>
-            </div>
-         </div>
-
-         <div className="relative h-64 w-full flex items-end justify-between px-2 md:px-10 gap-2 md:gap-8">
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03]">
-               <div className="w-full h-px bg-slate-900"></div>
-               <div className="w-full h-px bg-slate-900"></div>
-               <div className="w-full h-px bg-slate-900"></div>
-               <div className="w-full h-px bg-slate-900"></div>
-            </div>
-
-            {loading ? (
-               <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-               </div>
-            ) : monthlyData.map((data, idx) => (
-               <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                  <div className="flex items-end gap-1 md:gap-3 w-full justify-center h-full">
-                     <div className="w-3 md:w-8 bg-blue-600 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-blue-700 relative" style={{ height: `${(data.sale / maxVal) * 100}%`, minHeight: data.sale > 0 ? '4px' : '0' }}>
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">৳{data.sale.toLocaleString()}</div>
-                     </div>
-                     <div className="w-3 md:w-8 bg-rose-400 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-rose-500 relative" style={{ height: `${(data.expense / maxVal) * 100}%`, minHeight: data.expense > 0 ? '4px' : '0' }}>
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-1 rounded text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">৳{data.expense.toLocaleString()}</div>
-                     </div>
-                  </div>
-                  <p className="mt-6 text-[10px] md:text-xs font-black text-slate-400 group-hover:text-slate-800 transition-colors">{data.month}</p>
-               </div>
+          </div>
+          <div className="relative h-64 w-full flex items-end justify-between px-2 gap-2">
+            {monthlyData.map((data, idx) => (
+              <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                <div className="flex items-end gap-1 w-full justify-center h-full">
+                  <div className="w-3 md:w-8 bg-blue-600 rounded-t-xl" style={{ height: `${(data.sale / maxVal) * 100}%` }}></div>
+                  <div className="w-3 md:w-8 bg-rose-400 rounded-t-xl" style={{ height: `${(data.expense / maxVal) * 100}%` }}></div>
+                </div>
+                <p className="mt-4 text-[10px] font-black text-slate-400">{data.month}</p>
+              </div>
             ))}
-         </div>
+          </div>
+        </div>
+
+        {/* NEW: Water Quality Metrics Quick Input */}
+        <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+           <div className="flex items-center gap-3 mb-8">
+              <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-2xl text-white shadow-lg">🧪</div>
+              <div>
+                 <h3 className="text-2xl font-black text-slate-800">পানির গুণমান পরিমাপ</h3>
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ম্যানুয়াল ডাটা ইনপুট</p>
+              </div>
+           </div>
+
+           {showSuccess && (
+             <div className="absolute top-4 right-10 bg-green-500 text-white px-6 py-2 rounded-full text-xs font-black animate-bounce z-20 shadow-lg">
+                সফলভাবে সেভ হয়েছে!
+             </div>
+           )}
+
+           <form onSubmit={handleSaveMetric} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পুকুর নির্বাচন করুন</label>
+                <select 
+                  required
+                  value={metricForm.pond_id}
+                  onChange={e => setMetricForm({...metricForm, pond_id: e.target.value})}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black text-slate-700 appearance-none"
+                >
+                  <option value="">পুকুর বেছে নিন</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">DO (mg/L)</label>
+                    <input 
+                      type="number" step="0.1" 
+                      placeholder="অক্সিজেন"
+                      value={metricForm.oxygen}
+                      onChange={e => setMetricForm({...metricForm, oxygen: e.target.value})}
+                      className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black text-center"
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">pH (মান)</label>
+                    <input 
+                      type="number" step="0.1"
+                      placeholder="পিএইচ"
+                      value={metricForm.ph}
+                      onChange={e => setMetricForm({...metricForm, ph: e.target.value})}
+                      className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black text-center"
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Temp (°C)</label>
+                    <input 
+                      type="number" step="0.1"
+                      placeholder="তাপমাত্রা"
+                      value={metricForm.temp}
+                      onChange={e => setMetricForm({...metricForm, temp: e.target.value})}
+                      className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black text-center"
+                    />
+                 </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={savingMetric}
+                className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {savingMetric ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </button>
+           </form>
+        </div>
       </div>
     </div>
   );
