@@ -1,11 +1,23 @@
-<div align="center">
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+# মৎস্য খামার (Fish Farm SaaS)
 
-  <h1>Built with AI Studio</h2>
+একটি আধুনিক এবং স্কেলেবল ফিশ ফার্ম ম্যানেজমেন্ট প্ল্যাটফর্ম যা খামারিদের তাদের পুকুর, খরচ এবং লাভের হিসাব রাখতে সাহায্য করে।
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## টেক স্ট্যাক
+- **Frontend:** React, Tailwind CSS, ShadCN UI (Simulation), TypeScript.
+- **Backend:** Supabase (Auth, RLS, PostgreSQL).
+- **Design:** Mobile First, Premium SaaS UI.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## ডেপ্লয়মেন্ট গাইড (Vercel)
+১. রিপোজিটরিটি গিটহাবে পুশ করুন।
+২. Vercel এ নতুন প্রজেক্ট হিসেবে ইমপোর্ট করুন।
+৩. Environment Variables এ `SUPABASE_URL` এবং `SUPABASE_ANON_KEY` সেট করুন।
+৪. `sql/schema.sql` ফাইলটি Supabase SQL Editor এ রান করুন।
 
-</div>
+## বৈশিষ্ট্যসমূহ
+- সম্পূর্ণ বাংলা ইন্টারফেস।
+- বিকাশ পেমেন্ট ভিত্তিক সাবস্ক্রিপশন সিস্টেম।
+- অ্যাডমিন প্যানেল থেকে পেমেন্ট অনুমোদন।
+- পুকুর অনুযায়ী খরচ ও বিক্রির হিসাব।
+- পানির গুণমান পর্যবেক্ষণ (অক্সিজেন, পিএইচ, তাপমাত্রা)।
+- PWA সাপোর্ট (মোবাইল অ্যাপের মতো ব্যবহার উপযোগী)।
