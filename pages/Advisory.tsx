@@ -31,7 +31,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const getProjection = (biomass: number, months: number) => {
     // Standard growth multiplier: 1.25x to 2x depending on management
-    const multiplier = 1 + (months * 0.2); 
+    const multiplier = 1 + (months * 0.25); 
     const finalBiomass = biomass * multiplier;
     const dailyFeed = biomass * (feedingRate / 100);
     return { current: biomass, final: finalBiomass, daily: dailyFeed, total: dailyFeed * 30 * months };
@@ -39,7 +39,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const proj = selectedPond ? getProjection(selectedPond.biomass, duration) : null;
 
-  if (loading) return <div className="py-20 text-center font-black text-blue-600">বিশ্লেষণ করা হচ্ছে...</div>;
+  if (loading) return <div className="py-20 text-center font-black text-blue-600">খামারের ডাটা বিশ্লেষণ করা হচ্ছে...</div>;
 
   return (
     <div className="space-y-10 pb-20 animate-in fade-in duration-500">
@@ -47,7 +47,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <h1 className="text-3xl font-black text-slate-800">স্মার্ট ফিড ও গ্রোথ গাইড</h1>
         {selectedPond && (
            <div className="bg-green-50 text-green-600 px-5 py-2 rounded-full font-black text-xs uppercase">
-              সক্রিয় বিশ্লেষণ: {selectedPond.name}
+              বিশ্লেষণ পুকুর: {selectedPond.name}
            </div>
         )}
       </div>
@@ -76,22 +76,22 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
           <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl">💡</div>
-            <p className="text-xs font-black text-blue-400 mb-2 uppercase tracking-widest">খামারি টিপস</p>
-            <p className="text-sm opacity-80 leading-relaxed font-medium">আপনার পুকুরে বর্তমানে {selectedPond?.fishCount.toLocaleString()} টি মাছ আছে। নিয়মিত ওজন পরীক্ষা করে খাবারের পরিমাণ সমন্বয় করুন।</p>
+            <p className="text-xs font-black text-blue-400 mb-2 uppercase tracking-widest text-center">মাছ চাষ পরামর্শ</p>
+            <p className="text-sm opacity-80 leading-relaxed font-medium text-center">আপনার পুকুরে বর্তমানে মোট {selectedPond?.fishCount.toLocaleString()} পিস মাছ আছে। মাছের গ্রোথ ঠিক রাখতে নিয়মিত {proj?.daily.toFixed(1)} কেজি খাবার দিন।</p>
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AdviceCard label="বর্তমান মজুদ ওজন" value={`${proj?.current.toFixed(1)} কেজি`} icon="⚖️" color="blue" />
+            <AdviceCard label="বর্তমান মজুদ মাছ" value={`${selectedPond?.fishCount.toLocaleString()} পিস`} icon="🐟" color="blue" />
             <AdviceCard label="দৈনিক খাবারের টার্গেট" value={`${proj?.daily.toFixed(1)} কেজি`} icon="🌾" color="green" />
-            <AdviceCard label="সম্ভাব্য হার্ভেস্টিং ওজন" value={`${proj?.final.toFixed(1)} কেজি`} icon="🧺" color="indigo" />
+            <AdviceCard label="টার্গেট হার্ভেস্টিং ওজন" value={`${proj?.final.toFixed(1)} কেজি`} icon="🧺" color="indigo" />
             <AdviceCard label="প্রয়োজনীয় মোট খাবার" value={`${proj?.total.toFixed(0)} কেজি`} icon="📦" color="rose" />
           </div>
 
           {selectedPond?.biomass === 0 && (
             <div className="bg-rose-50 border border-rose-100 p-8 rounded-[3rem] text-center">
-               <p className="text-rose-600 font-black">সতর্কতা: আপনার পুকুরে এখনো মাছ মজুদ করা হয়নি। অনুগ্রহ করে পুকুরসমূহ পেজে গিয়ে মাছের সংখ্যা ও ওজন আপডেট করুন।</p>
+               <p className="text-rose-600 font-black italic">সতর্কতা: এই পুকুরে এখনো মাছ মজুদ করা হয়নি! পুকুরসমূহ পেজে গিয়ে মাছের সংখ্যা ও ওজন যোগ করুন।</p>
             </div>
           )}
         </div>

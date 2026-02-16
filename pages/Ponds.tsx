@@ -21,7 +21,6 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchPonds = async () => {
     setLoading(true);
     try {
-      // Fetching with stocking_records joined
       const { data, error } = await supabase
         .from('ponds')
         .select(`*, stocking_records(*)`)
@@ -85,7 +84,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`আপনি কি "${name}" পুকুরটি ডিলিট করতে চান? সব ডাটা মুছে যাবে!`)) {
+    if (confirm(`আপনি কি "${name}" পুকুরটি ডিলিট করতে চান? এর সাথে যুক্ত সকল ডাটা মুছে যাবে!`)) {
       await supabase.from('ponds').delete().eq('id', id);
       fetchPonds();
     }
@@ -95,8 +94,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     <div className="space-y-8 pb-20">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-black text-slate-800 tracking-tight">পুকুর ও পোনা মজুদ</h1>
-          <p className="text-slate-500 font-bold">এখানে আপনার সব পুকুরের লিস্ট এবং মজুদ পোনার হিসাব পাবেন</p>
+          <h1 className="text-4xl font-black text-slate-800 tracking-tight">পুকুর ও মাছের মজুদ</h1>
+          <p className="text-slate-500 font-bold">আপনার সব পুকুর এবং মোট মাছের হিসাব এখানে দেখুন</p>
         </div>
         <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl hover:scale-105 transition-all">➕ নতুন পুকুর</button>
       </div>
@@ -105,7 +104,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <div className="py-20 text-center font-black text-blue-600 animate-pulse text-2xl">পুকুরের ডাটা লোড হচ্ছে...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {ponds.length === 0 && <div className="col-span-full py-20 bg-white rounded-[3rem] border-2 border-dashed text-center text-slate-400 font-bold italic">কোন পুকুর পাওয়া যায়নি! নতুন পুকুর যোগ করুন।</div>}
+          {ponds.length === 0 && <div className="col-span-full py-20 bg-white rounded-[3rem] border-2 border-dashed text-center text-slate-400 font-bold italic">কোন পুকুর পাওয়া যায়নি!</div>}
           {ponds.map(pond => (
             <div key={pond.id} className="bg-white rounded-[3rem] shadow-sm border border-slate-100 p-10 hover:shadow-2xl transition-all group relative overflow-hidden">
               <div className="flex justify-between mb-6">
@@ -117,15 +116,15 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               
               <div className="bg-slate-50 p-6 rounded-[2rem] space-y-4 mb-8">
                 <div className="flex justify-between text-sm font-bold">
-                  <span className="text-slate-400">মোট পোনা মজুদ:</span> 
+                  <span className="text-slate-400">মোট মাছ ছাড়া হয়েছে:</span> 
                   <span className="text-slate-800 font-black">{pond.total_count.toLocaleString()} পিস</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold">
-                  <span className="text-slate-400">বর্তমান মোট ওজন:</span> 
+                  <span className="text-slate-400">মজুদ ওজন (কেজি):</span> 
                   <span className="text-blue-600 font-black">{pond.total_weight.toFixed(1)} কেজি</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-4">
-                  <span className="text-slate-400">মাছের গড় ওজন:</span> 
+                  <span className="text-slate-400">গড় ওজন (প্রতিটি):</span> 
                   <span className="text-green-600 font-black">{pond.avg_weight.toFixed(1)} গ্রাম</span>
                 </div>
               </div>
@@ -134,7 +133,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} 
                 className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-blue-600 transition-colors shadow-lg active:scale-95"
               >
-                🐟 নতুন পোনা ছাড়ুন
+                🐟 পোনা মজুদ করুন
               </button>
             </div>
           ))}
@@ -145,12 +144,12 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       {isStockModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
           <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-8 animate-in zoom-in-95">
-            <h3 className="text-2xl font-black text-slate-800 text-center">মাছ মজুদ তথ্য</h3>
+            <h3 className="text-2xl font-black text-slate-800 text-center">নতুন পোনা মজুদের তথ্য</h3>
             <div className="space-y-4">
               <input type="text" placeholder="মাছের প্রজাতি" value={stocking.species} onChange={e => setStocking({...stocking, species: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                   <label className="text-[10px] font-black text-slate-400 uppercase ml-4">কত পিস</label>
+                   <label className="text-[10px] font-black text-slate-400 uppercase ml-4">মাছ সংখ্যা (পিস)</label>
                    <input type="number" placeholder="সংখ্যা" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-black border-none" />
                 </div>
                 <div className="space-y-1">
@@ -161,7 +160,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsStockModalOpen(false)} className="flex-1 py-5 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleStocking} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg">মজুদ সম্পন্ন</button>
+              <button onClick={handleStocking} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black">মজুদ করুন</button>
             </div>
           </div>
         </div>
@@ -171,15 +170,15 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
           <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 animate-in zoom-in-95">
-            <h3 className="text-2xl font-black text-slate-800 text-center">নতুন পুকুর যোগ করুন</h3>
+            <h3 className="text-2xl font-black text-slate-800 text-center">নতুন পুকুর যোগ</h3>
             <div className="space-y-4">
-              <input type="text" placeholder="পুকুরের নাম (উদা: ১ নং পুকুর)" value={newPond.name} onChange={e => setNewPond({...newPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
+              <input type="text" placeholder="পুকুরের নাম" value={newPond.name} onChange={e => setNewPond({...newPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
               <input type="number" placeholder="আয়তন (শতাংশ)" value={newPond.area} onChange={e => setNewPond({...newPond, area: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
-              <input type="text" placeholder="কি মাছ চাষ করবেন?" value={newPond.fish_type} onChange={e => setNewPond({...newPond, fish_type: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
+              <input type="text" placeholder="প্রধান মাছ" value={newPond.fish_type} onChange={e => setNewPond({...newPond, fish_type: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold border-none outline-none" />
             </div>
             <div className="flex gap-4 pt-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAddPond} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg">পুকুর তৈরি করুন</button>
+              <button onClick={handleAddPond} className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-black">তৈরি করুন</button>
             </div>
           </div>
         </div>

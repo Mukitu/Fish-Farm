@@ -1,5 +1,5 @@
 
--- ১. এনাম ও প্রোফাইল টেবিল সেটআপ (Infinite Recursion মুক্ত)
+-- ১. এনাম ও প্রোফাইল টেবিল সেটআপ
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
         CREATE TYPE user_role AS ENUM ('ADMIN', 'FARMER');
@@ -18,20 +18,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     max_ponds INTEGER DEFAULT 0,
     farm_name TEXT,
     phone TEXT,
+    full_name TEXT,
+    avatar_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE OR REPLACE FUNCTION public.check_is_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN (SELECT (role = 'ADMIN') FROM public.profiles WHERE id = auth.uid());
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ২. সকল ডাটা টেবিল তৈরি
+-- ২. পুকুর টেবিল
 CREATE TABLE IF NOT EXISTS public.ponds (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -44,10 +37,35 @@ CREATE TABLE IF NOT EXISTS public.ponds (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ৩. পোনা মজুদ টেবিল (সব ফিচারের সাথে কানেক্টেড)
+CREATE TABLE IF NOT EXISTS public.stocking_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
+    species TEXT,
+    count INTEGER DEFAULT 0,
+    total_weight_kg DECIMAL DEFAULT 0,
+    avg_weight_gm DECIMAL DEFAULT 0,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৪. খাবারের লগ টেবিল
+CREATE TABLE IF NOT EXISTS public.feed_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
+    feed_item TEXT DEFAULT 'সাধারণ খাবার',
+    amount DECIMAL NOT NULL,
+    time TEXT DEFAULT 'সকাল',
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৫. খরচের টেবিল
 CREATE TABLE IF NOT EXISTS public.expenses (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds ON DELETE CASCADE,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
     category TEXT NOT NULL,
     item_name TEXT,
     amount DECIMAL NOT NULL,
@@ -56,10 +74,11 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ৬. বিক্রির টেবিল
 CREATE TABLE IF NOT EXISTS public.sales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds ON DELETE CASCADE,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
     item_name TEXT,
     amount DECIMAL NOT NULL,
     weight DECIMAL NOT NULL,
@@ -67,60 +86,17 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.water_logs (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds ON DELETE CASCADE,
-    oxygen DECIMAL,
-    ph DECIMAL,
-    temp DECIMAL,
-    date TIMESTAMPTZ DEFAULT NOW()
-);
+-- RLS পলিসিগুলো প্রয়োগ
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stocking_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feed_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS public.feed_logs (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds ON DELETE CASCADE,
-    feed_item TEXT,
-    amount DECIMAL NOT NULL,
-    time TEXT,
-    date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.inventory (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    name TEXT NOT NULL,
-    quantity DECIMAL NOT NULL,
-    unit TEXT NOT NULL,
-    type TEXT NOT NULL,
-    low_stock_threshold DECIMAL DEFAULT 10,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.growth_records (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds ON DELETE CASCADE,
-    avg_weight_gm DECIMAL NOT NULL,
-    sample_count INTEGER,
-    date DATE DEFAULT CURRENT_DATE
-);
-
--- ৩. সকল টেবিলে RLS পলিসি প্রয়োগ (সহজ এবং কার্যকর)
-DO $$ 
-DECLARE 
-    t text;
-    tables text[] := ARRAY['profiles', 'ponds', 'expenses', 'sales', 'water_logs', 'feed_logs', 'inventory', 'growth_records'];
-BEGIN
-    FOR t IN SELECT unnest(tables) LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-        EXECUTE format('DROP POLICY IF EXISTS "User access own %I" ON public.%I', t, t);
-        IF t = 'profiles' THEN
-          EXECUTE format('CREATE POLICY "User access own profiles" ON public.profiles FOR ALL USING (auth.uid() = id)');
-        ELSE
-          EXECUTE format('CREATE POLICY "User access own %I" ON public.%I FOR ALL USING (auth.uid() = user_id)', t, t);
-        END IF;
-    END LOOP;
-END $$;
+CREATE POLICY "Own Profile Access" ON public.profiles FOR ALL USING (auth.uid() = id);
+CREATE POLICY "Own Ponds Access" ON public.ponds FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Own Stocking Access" ON public.stocking_records FOR ALL USING (EXISTS (SELECT 1 FROM ponds WHERE id = stocking_records.pond_id AND user_id = auth.uid()));
+CREATE POLICY "Own Feeds Access" ON public.feed_logs FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Own Expenses Access" ON public.expenses FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Own Sales Access" ON public.sales FOR ALL USING (auth.uid() = user_id);
