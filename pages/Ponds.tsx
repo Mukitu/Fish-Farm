@@ -72,6 +72,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     setSaving(true);
     try {
       const { error } = await supabase.from('stocking_records').insert([{
+        user_id: user.id,
         pond_id: selectedPond.id,
         species: stocking.species || selectedPond.fish_type,
         count: parseInt(stocking.count),

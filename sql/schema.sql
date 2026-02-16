@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS public.growth_records (
     user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
     pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE NOT NULL,
     avg_weight_gm DECIMAL NOT NULL,
+    sample_count INTEGER DEFAULT 0,
     date DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -125,12 +126,13 @@ CREATE TABLE IF NOT EXISTS public.sales (
 -- ১০. পোনা মজুদ টেবিল
 CREATE TABLE IF NOT EXISTS public.stocking_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
     pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
     species TEXT,
     count INTEGER DEFAULT 0,
     total_weight_kg DECIMAL DEFAULT 0,
     avg_weight_gm DECIMAL DEFAULT 0,
-    date DATE DEFAULT CURRENT_DATE,
+    date DATE DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -147,7 +149,9 @@ BEGIN
         IF tbl = 'profiles' THEN
              EXECUTE format('CREATE POLICY "User Access Policy" ON public.%I FOR ALL USING (auth.uid() = id)', tbl);
         ELSE
-             EXECUTE format('CREATE POLICY "User Access Policy" ON public.%I FOR ALL USING (auth.uid() = user_id)', tbl);
+             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = tbl AND column_name = 'user_id') THEN
+                EXECUTE format('CREATE POLICY "User Access Policy" ON public.%I FOR ALL USING (auth.uid() = user_id)', tbl);
+             END IF;
         END IF;
     END LOOP;
 END $$;

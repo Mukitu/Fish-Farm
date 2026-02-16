@@ -73,7 +73,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       // মাছের মোট সংখ্যা
       const totalCount = pond.stocking_records?.reduce((a: any, b: any) => a + Number(b.count), 0) || 0;
       
-      // সর্বশেষ গড় ওজন (Growth Records থেকে অথবা Stocking থেকে)
+      // সর্বশেষ গড় ওজন
       const sortedGrowth = pond.growth_records?.sort((a: any, b: any) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
@@ -82,9 +82,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       const avgWeight = latestGrowth ? latestGrowth.avg_weight_gm : (pond.stocking_records?.[0]?.avg_weight_gm || 0);
       
       if (totalCount > 0 && avgWeight > 0) {
-        // বায়োমাস ক্যালকুলেশন (মাছের মোট ওজন কেজি তে)
         const biomassKg = (totalCount * avgWeight) / 1000;
-        // ৩% খাবার পরামর্শ
         const recAmount = biomassKg * 0.03;
         setRecommendation(parseFloat(recAmount.toFixed(2)));
       } else {
@@ -128,7 +126,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setNewLog({ pond_id: '', inventory_id: '', amount: '', time: 'সকাল' });
       setRecommendation(null);
       
-      // ডাটা রিফ্রেশ করা
       await fetchData();
       alert("✅ খাবার প্রয়োগ সফলভাবে সংরক্ষিত হয়েছে!");
     } catch (err: any) { 
