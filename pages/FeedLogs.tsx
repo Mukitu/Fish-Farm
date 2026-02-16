@@ -23,30 +23,31 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [pondRes, invRes, logRes] = await Promise.all([
-        supabase.from('ponds').select('*').eq('user_id', user.id),
-        supabase.from('inventory').select('*').eq('user_id', user.id).eq('type', 'খাবার'),
-        supabase.from('feed_logs')
-          .select('*, ponds(name), inventory(name)')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-      ]);
+      const { data: pData } = await supabase.from('ponds').select('*').eq('user_id', user.id);
+      const { data: iData } = await supabase.from('inventory').select('*').eq('user_id', user.id).eq('type', 'খাবার');
+      const { data: lData } = await supabase.from('feed_logs')
+        .select('*, ponds(name), inventory(name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-      if (pondRes.data) setPonds(pondRes.data);
-      if (invRes.data) setInventory(invRes.data);
-      if (logRes.data) setLogs(logRes.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      if (pData) setPonds(pData as Pond[]);
+      if (iData) setInventory(iData as InventoryItem[]);
+      if (lData) setLogs(lData);
+    } catch (err) { 
+      console.error("Fetch Error:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const handleAdd = async () => {
     const applyAmount = parseFloat(newLog.amount);
-    const selectedFeed = inventory.find(i => i.id === newLog.inventory_id);
-
     if (!newLog.pond_id || !newLog.inventory_id || isNaN(applyAmount)) {
-      alert("⚠️ পুকুর ও খাবার নির্বাচন করুন!");
+      alert("⚠️ পুকুর, খাবার এবং সঠিক পরিমাণ নির্বাচন করুন!");
       return;
     }
 
+    const selectedFeed = inventory.find(i => i.id === newLog.inventory_id);
     if (!selectedFeed || Number(selectedFeed.quantity) < applyAmount) {
       alert(`⚠️ পর্যাপ্ত মজুদ নেই! আছে: ${selectedFeed?.quantity || 0} কেজি`);
       return;
@@ -62,8 +63,10 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         time: newLog.time,
         date: new Date().toISOString().split('T')[0]
       }]);
+
       if (logError) throw logError;
 
+      // ইনভেন্টরি কমানো
       await supabase.from('inventory')
         .update({ quantity: Number(selectedFeed.quantity) - applyAmount })
         .eq('id', newLog.inventory_id);
@@ -71,7 +74,12 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setIsModalOpen(false);
       setNewLog({ pond_id: '', inventory_id: '', amount: '', time: 'সকাল' });
       await fetchData();
-    } catch (err: any) { alert(err.message); } finally { setSaving(false); }
+      alert("✅ খাবার প্রয়োগ সফলভাবে সংরক্ষিত হয়েছে!");
+    } catch (err: any) { 
+      alert("Error: " + err.message); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   return (
@@ -85,7 +93,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
             <tr>
-              <th className="px-8 py-6">তারিখ</th>
+              <th className="px-8 py-6">তারিখ ও সময়</th>
               <th className="px-8 py-6">পুকুর</th>
               <th className="px-8 py-6">খাবার</th>
               <th className="px-8 py-6">পরিমাণ</th>
@@ -93,7 +101,9 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {logs.map(log => (
+            {loading ? (
+              <tr><td colSpan={5} className="text-center py-20 font-bold animate-pulse text-blue-600">লোড হচ্ছে...</td></tr>
+            ) : logs.map(log => (
               <tr key={log.id} className="hover:bg-slate-50 transition">
                 <td className="px-8 py-6 font-bold text-xs">{new Date(log.date).toLocaleDateString('bn-BD')} | {log.time}</td>
                 <td className="px-8 py-6 font-black text-slate-800">{log.ponds?.name || 'অজানা'}</td>
@@ -118,7 +128,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <select value={newLog.inventory_id} onChange={e => setNewLog({...newLog, inventory_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100">
-                <option value="">খাবার বেছে নিন</option>
+                <option value="">খাবার বেছে নিন (গুদাম থেকে)</option>
                 {inventory.map(i => <option key={i.id} value={i.id}>{i.name} (মজুদ: {i.quantity} kg)</option>)}
               </select>
               <input type="number" placeholder="পরিমাণ (কেজি)" value={newLog.amount} onChange={e => setNewLog({...newLog, amount: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-black text-center" />
@@ -131,7 +141,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">প্রয়োগ করুন</button>
+              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">{saving ? 'সেভ হচ্ছে...' : 'প্রয়োগ করুন'}</button>
             </div>
           </div>
         </div>

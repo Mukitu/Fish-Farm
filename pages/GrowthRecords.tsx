@@ -8,6 +8,7 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<Pond[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newRec, setNewRec] = useState({ pond_id: '', avg_weight_gm: '' });
 
   useEffect(() => { fetchData(); }, []);
@@ -27,7 +28,11 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
-    if (!newRec.pond_id || !newRec.avg_weight_gm) return alert("পুকুর এবং ওজন দিন!");
+    if (!newRec.pond_id || !newRec.avg_weight_gm) {
+      alert("⚠️ পুকুর এবং মাছের গড় ওজন দিন!");
+      return;
+    }
+    setSaving(true);
     try {
       const { error } = await supabase.from('growth_records').insert([{
         user_id: user.id,
@@ -36,23 +41,31 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         date: new Date().toISOString().split('T')[0]
       }]);
       if (error) throw error;
+      
       setIsModalOpen(false);
       setNewRec({ pond_id: '', avg_weight_gm: '' });
-      fetchData();
-      alert("✅ গ্রোথ রেকর্ড সেভ হয়েছে!");
-    } catch (err: any) { alert(err.message); }
+      await fetchData();
+      alert("✅ মাছের বৃদ্ধির রেকর্ড সফলভাবে সংরক্ষিত হয়েছে!");
+    } catch (err: any) { 
+      alert("Error: " + err.message); 
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-black text-slate-800 tracking-tight">মাছের বৃদ্ধি</h1>
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">মাছের বৃদ্ধি</h1>
+          <p className="text-slate-500 font-bold">মাছের ওজন বৃদ্ধির ইতিহাস</p>
+        </div>
         <button onClick={() => setIsModalOpen(true)} className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">➕ রেকর্ড যোগ</button>
       </div>
 
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-left">
-          <thead className="bg-slate-50 text-slate-400 text-[10px] font-black border-b">
+          <thead className="bg-slate-50 text-slate-400 text-[10px] font-black border-b uppercase tracking-widest">
             <tr>
               <th className="px-8 py-6">তারিখ</th>
               <th className="px-8 py-6">পুকুর</th>
@@ -88,7 +101,9 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black">বাতিল</button>
-              <button onClick={handleAdd} className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-black">সেভ করুন</button>
+              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-black">
+                {saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ'}
+              </button>
             </div>
           </div>
         </div>
