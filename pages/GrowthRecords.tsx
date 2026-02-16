@@ -9,7 +9,7 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [newRec, setNewRec] = useState({ pond_id: '', avg_weight_gm: '' });
+  const [newRec, setNewRec] = useState({ pond_id: '', avg_weight_gm: '', sample_count: '' });
 
   useEffect(() => { fetchData(); }, []);
 
@@ -38,12 +38,13 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         user_id: user.id,
         pond_id: newRec.pond_id,
         avg_weight_gm: parseFloat(newRec.avg_weight_gm),
+        sample_count: parseInt(newRec.sample_count || '0'), // নাল এরর ঠেকাতে ০ ডিফল্ট করা হলো
         date: new Date().toISOString().split('T')[0]
       }]);
       if (error) throw error;
       
       setIsModalOpen(false);
-      setNewRec({ pond_id: '', avg_weight_gm: '' });
+      setNewRec({ pond_id: '', avg_weight_gm: '', sample_count: '' });
       await fetchData();
       alert("✅ মাছের বৃদ্ধির রেকর্ড সফলভাবে সংরক্ষিত হয়েছে!");
     } catch (err: any) { 
@@ -54,13 +55,13 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">মাছের বৃদ্ধি</h1>
-          <p className="text-slate-500 font-bold">মাছের ওজন বৃদ্ধির ইতিহাস</p>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">মাছের বৃদ্ধি ট্র্যাকিং</h1>
+          <p className="text-slate-500 font-bold">সময়ের সাথে মাছের গড় ওজন রেকর্ড করুন</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">➕ রেকর্ড যোগ</button>
+        <button onClick={() => setIsModalOpen(true)} className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all">➕ রেকর্ড যোগ</button>
       </div>
 
       <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -69,18 +70,22 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             <tr>
               <th className="px-8 py-6">তারিখ</th>
               <th className="px-8 py-6">পুকুর</th>
+              <th className="px-8 py-6">স্যাম্পল সংখ্যা</th>
               <th className="px-8 py-6">গড় ওজন</th>
               <th className="px-8 py-6 text-center">অ্যাকশন</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 text-slate-700">
-            {records.map(rec => (
-              <tr key={rec.id} className="hover:bg-slate-50 transition">
+            {loading ? (
+              <tr><td colSpan={5} className="text-center py-20 font-bold text-indigo-600">লোড হচ্ছে...</td></tr>
+            ) : records.map(rec => (
+              <tr key={rec.id} className="hover:bg-slate-50 transition group">
                 <td className="px-8 py-6 font-bold">{new Date(rec.date).toLocaleDateString('bn-BD')}</td>
                 <td className="px-8 py-6 font-black text-slate-800">{rec.ponds?.name || 'অজানা'}</td>
-                <td className="px-8 py-6 font-black text-indigo-600">{rec.avg_weight_gm} গ্রাম</td>
+                <td className="px-8 py-6">{rec.sample_count || 0} টি মাছ</td>
+                <td className="px-8 py-6 font-black text-indigo-600 text-lg">{rec.avg_weight_gm} গ্রাম</td>
                 <td className="px-8 py-6 text-center">
-                  <button onClick={async () => { if(confirm('ডিলিট করবেন?')) { await supabase.from('growth_records').delete().eq('id', rec.id); fetchData(); } }} className="text-rose-300">🗑️</button>
+                  <button onClick={async () => { if(confirm('ডিলিট করবেন?')) { await supabase.from('growth_records').delete().eq('id', rec.id); fetchData(); } }} className="text-rose-200 group-hover:text-rose-500 transition-colors">🗑️</button>
                 </td>
               </tr>
             ))}
@@ -90,19 +95,31 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
-            <h3 className="text-2xl font-black text-slate-800 text-center">মাছের ওজন রেকর্ড</h3>
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
+            <h3 className="text-2xl font-black text-slate-800 text-center">নতুন ওজন রেকর্ড</h3>
             <div className="space-y-4">
-              <select value={newRec.pond_id} onChange={e => setNewRec({...newRec, pond_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-xl font-bold border-none outline-none ring-1 ring-slate-200">
-                <option value="">পুকুর বেছে নিন</option>
-                {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <input type="number" placeholder="গড় ওজন (গ্রাম)" value={newRec.avg_weight_gm} onChange={e => setNewRec({...newRec, avg_weight_gm: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-xl font-black text-center text-xl border-none ring-1 ring-slate-200" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পুকুর নির্বাচন</label>
+                <select value={newRec.pond_id} onChange={e => setNewRec({...newRec, pond_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-xl font-bold border-none outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-600">
+                  <option value="">পুকুর বেছে নিন</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">স্যাম্পল মাছের সংখ্যা</label>
+                  <input type="number" placeholder="উদা: ৫" value={newRec.sample_count} onChange={e => setNewRec({...newRec, sample_count: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-xl font-bold border-none ring-1 ring-slate-200" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">গড় ওজন (গ্রাম)</label>
+                  <input type="number" step="0.1" placeholder="উদা: ২৫০" value={newRec.avg_weight_gm} onChange={e => setNewRec({...newRec, avg_weight_gm: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-xl font-black text-center text-xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-600" />
+                </div>
+              </div>
             </div>
             <div className="flex gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black">বাতিল</button>
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-black">
-                {saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ'}
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-xl font-black text-slate-400 hover:text-slate-600 transition-colors">বাতিল</button>
+              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
+                {saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ করুন'}
               </button>
             </div>
           </div>
