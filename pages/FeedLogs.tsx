@@ -48,13 +48,13 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
 
     if (!selectedFeed || Number(selectedFeed.quantity) < applyAmount) {
-      alert(`⚠️ পর্যাপ্ত মজুদ নেই! আছে: ${selectedFeed?.quantity || 0} kg`);
+      alert(`⚠️ পর্যাপ্ত মজুদ নেই! গুদামে আছে মাত্র: ${selectedFeed?.quantity || 0} কেজি`);
       return;
     }
 
     setSaving(true);
     try {
-      // খাবার প্রয়োগ রেকর্ড
+      // ১. খাবার প্রয়োগ রেকর্ড
       const { error: logError } = await supabase.from('feed_logs').insert([{
         user_id: user.id,
         pond_id: newLog.pond_id,
@@ -65,7 +65,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       }]);
       if (logError) throw logError;
 
-      // ইনভেন্টরি স্টক আপডেট
+      // ২. ইনভেন্টরি স্টক কমানো
       await supabase.from('inventory')
         .update({ quantity: Number(selectedFeed.quantity) - applyAmount })
         .eq('id', newLog.inventory_id);
@@ -79,7 +79,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <h1 className="text-4xl font-black text-slate-800">খাবার প্রয়োগ</h1>
+        <h1 className="text-4xl font-black text-slate-800 tracking-tight">খাবার প্রয়োগ</h1>
         <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl">➕ খাবার প্রদান</button>
       </div>
 
@@ -87,9 +87,9 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
             <tr>
-              <th className="px-8 py-6">তারিখ</th>
-              <th className="px-8 py-6">পুকুর</th>
-              <th className="px-8 py-6">খাবার</th>
+              <th className="px-8 py-6">তারিখ ও সময়</th>
+              <th className="px-8 py-6">পুকুরের নাম</th>
+              <th className="px-8 py-6">খাবারের ধরণ</th>
               <th className="px-8 py-6">পরিমাণ</th>
               <th className="px-8 py-6 text-center">অ্যাকশন</th>
             </tr>
@@ -99,33 +99,78 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <tr key={log.id} className="hover:bg-slate-50 transition">
                 <td className="px-8 py-6 font-bold text-xs">{new Date(log.date).toLocaleDateString('bn-BD')} | {log.time}</td>
                 <td className="px-8 py-6 font-black text-slate-800">{log.ponds?.name || 'অজানা'}</td>
-                <td className="px-8 py-6">{log.inventory?.name || 'অজানা'}</td>
-                <td className="px-8 py-6 font-black text-blue-600">{log.amount} kg</td>
+                <td className="px-8 py-6 font-bold text-slate-500">{log.inventory?.name || 'অজানা'}</td>
+                <td className="px-8 py-6 font-black text-blue-600">{log.amount} কেজি</td>
                 <td className="px-8 py-6 text-center">
-                   <button onClick={async () => {if(confirm('মুছবেন?')) {await supabase.from('feed_logs').delete().eq('id', log.id); fetchData();}}} className="text-rose-300">🗑️</button>
+                   <button onClick={async () => {if(confirm('রেকর্ডটি মুছবেন?')) {await supabase.from('feed_logs').delete().eq('id', log.id); fetchData();}}} className="text-rose-300">🗑️</button>
                 </td>
               </tr>
             ))}
+            {logs.length === 0 && !loading && (
+              <tr><td colSpan={5} className="text-center py-20 text-slate-300 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
-            <h3 className="text-2xl font-black text-center">খাবার প্রদানের তথ্য</h3>
-            <select value={newLog.pond_id} onChange={e => setNewLog({...newLog, pond_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100">
-              <option value="">পুকুর বেছে নিন</option>
-              {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select value={newLog.inventory_id} onChange={e => setNewLog({...newLog, inventory_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100">
-              <option value="">খাবার বেছে নিন</option>
-              {inventory.map(i => <option key={i.id} value={i.id}>{i.name} (মজুদ: {i.quantity} kg)</option>)}
-            </select>
-            <input type="number" placeholder="পরিমাণ (কেজি)" value={newLog.amount} onChange={e => setNewLog({...newLog, amount: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-black text-center" />
-            <div className="flex gap-4">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-center text-slate-800">খাবার প্রয়োগের তথ্য</h3>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পুকুর নির্বাচন করুন</label>
+                <select 
+                  value={newLog.pond_id} 
+                  onChange={e => setNewLog({...newLog, pond_id: e.target.value})} 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="">পুকুর বেছে নিন</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খাবার নির্বাচন করুন (গুদাম থেকে)</label>
+                <select 
+                  value={newLog.inventory_id} 
+                  onChange={e => setNewLog({...newLog, inventory_id: e.target.value})} 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="">খাবার বেছে নিন</option>
+                  {inventory.map(i => <option key={i.id} value={i.id}>{i.name} (মজুদ: {i.quantity} kg)</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খাবারের পরিমাণ (কেজি)</label>
+                <input 
+                  type="number" 
+                  placeholder="উদা: ৫.৫" 
+                  value={newLog.amount} 
+                  onChange={e => setNewLog({...newLog, amount: e.target.value})} 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-black text-center focus:ring-2 focus:ring-blue-600" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">প্রয়োগের সময়</label>
+                <select 
+                  value={newLog.time} 
+                  onChange={e => setNewLog({...newLog, time: e.target.value})} 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="সকাল">সকাল</option>
+                  <option value="দুপুর">দুপুর</option>
+                  <option value="বিকাল">বিকাল</option>
+                  <option value="রাত">রাত</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">প্রয়োগ করুন</button>
+              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">প্রয়োগ সম্পন্ন</button>
             </div>
           </div>
         </div>

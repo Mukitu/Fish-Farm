@@ -31,6 +31,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const getAdvice = async (pond: any) => {
     setAnalyzing(true);
+    setAdvice('');
     try {
       const { data: water } = await supabase.from('water_logs')
         .select('*')
@@ -42,16 +43,16 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setLatestWater(water);
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `পুকুর: ${pond.name}, মাছ: ${pond.fish_type}. পানির মান: DO: ${water?.oxygen || 'অজানা'}, pH: ${water?.ph || 'অজানা'}, তাপমাত্রা: ${water?.temp || 'অজানা'}। এই খামারের জন্য ৩টি কার্যকরী চাষ পরামর্শ দিন বাংলায়।`;
+      const prompt = `পুকুরের নাম: ${pond.name}, মাছের ধরণ: ${pond.fish_type}. পানির বর্তমান মান: অক্সিজেন: ${water?.oxygen || 'অজানা'}, pH: ${water?.ph || 'অজানা'}, তাপমাত্রা: ${water?.temp || 'অজানা'}। এই তথ্য অনুযায়ী মাছের মৃত্যুঝুঁকি কমাতে এবং দ্রুত বৃদ্ধি করতে ৩টি কার্যকরী পরামর্শ বাংলায় দিন।`;
       
       const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
         contents: prompt,
-        config: { thinkingConfig: { thinkingBudget: 10000 } },
+        config: { thinkingConfig: { thinkingBudget: 15000 } },
       });
-      setAdvice(response.text || 'কোনো পরামর্শ পাওয়া যায়নি।');
+      setAdvice(response.text || 'দুঃখিত, কোনো পরামর্শ পাওয়া যায়নি।');
     } catch (e) {
-      setAdvice('ডাটা আপডেট করুন এবং পুনরায় চেষ্টা করুন।');
+      setAdvice('ডাটা আপডেট করুন এবং পুনরায় চেষ্টা করুন। নিশ্চিত করুন যে আপনার ইন্টারনেট সংযোগ সচল আছে।');
     } finally {
       setAnalyzing(false);
     }
@@ -65,60 +66,77 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
-  if (loading) return <div className="text-center py-20 font-black">তথ্য লোড হচ্ছে...</div>;
+  if (loading) return <div className="text-center py-20 font-black text-blue-600 animate-pulse">খামারের তথ্য বিশ্লেষণ হচ্ছে...</div>;
 
   return (
     <div className="space-y-10 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-4xl font-black text-slate-800">চাষ গাইড ও পরামর্শ</h1>
-        <select 
-          value={selectedPond?.id || ''} 
-          onChange={e => handlePondChange(e.target.value)} 
-          className="px-6 py-4 bg-white rounded-2xl font-black border-none ring-1 ring-slate-200 outline-none"
-        >
-          {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          {ponds.length === 0 && <option value="">পুকুর যোগ করুন</option>}
-        </select>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+           <h1 className="text-4xl font-black text-slate-800 tracking-tight">স্মার্ট চাষ গাইড</h1>
+           <p className="text-slate-500 font-bold">পুকুর অনুযায়ী এআই চালিত বৈজ্ঞানিক পরামর্শ</p>
+        </div>
+        <div className="w-full md:w-auto">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 block mb-1">পুকুর নির্বাচন করুন</label>
+          <select 
+            value={selectedPond?.id || ''} 
+            onChange={e => handlePondChange(e.target.value)} 
+            className="w-full md:w-80 px-6 py-4 bg-white rounded-2xl font-black border-none ring-1 ring-slate-200 shadow-sm focus:ring-2 focus:ring-blue-600 transition-all outline-none"
+          >
+            {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {ponds.length === 0 && <option value="">আগে পুকুর যোগ করুন</option>}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-fit">
-           <h3 className="text-xl font-black mb-6 flex items-center gap-2"><span>📊</span> বর্তমান অবস্থা</h3>
+           <h3 className="text-xl font-black mb-8 flex items-center gap-2">📊 পানির সর্বশেষ মান</h3>
            {latestWater ? (
              <div className="space-y-4">
-                <div className="flex justify-between p-5 bg-blue-50 rounded-2xl font-bold">
-                  <span className="text-slate-500">অক্সিজেন:</span> <span className="text-blue-600">{latestWater.oxygen} mg/L</span>
+                <div className="flex justify-between p-5 bg-blue-50 rounded-2xl font-bold group hover:bg-blue-600 hover:text-white transition-colors">
+                  <span className="opacity-60 group-hover:opacity-100">অক্সিজেন:</span> 
+                  <span className="font-black">{latestWater.oxygen} mg/L</span>
                 </div>
-                <div className="flex justify-between p-5 bg-green-50 rounded-2xl font-bold">
-                  <span className="text-slate-500">pH মান:</span> <span className="text-green-600">{latestWater.ph}</span>
+                <div className="flex justify-between p-5 bg-green-50 rounded-2xl font-bold group hover:bg-green-600 hover:text-white transition-colors">
+                  <span className="opacity-60 group-hover:opacity-100">pH মান:</span> 
+                  <span className="font-black">{latestWater.ph}</span>
                 </div>
-                <div className="flex justify-between p-5 bg-orange-50 rounded-2xl font-bold">
-                  <span className="text-slate-500">তাপমাত্রা:</span> <span className="text-orange-600">{latestWater.temp}°C</span>
+                <div className="flex justify-between p-5 bg-orange-50 rounded-2xl font-bold group hover:bg-orange-600 hover:text-white transition-colors">
+                  <span className="opacity-60 group-hover:opacity-100">তাপমাত্রা:</span> 
+                  <span className="font-black">{latestWater.temp}°C</span>
                 </div>
+                <p className="text-[10px] text-center text-slate-400 font-black mt-4 uppercase">সর্বশেষ আপডেট: {new Date(latestWater.date).toLocaleDateString('bn-BD')}</p>
              </div>
            ) : (
-             <div className="text-center py-10">
-               <p className="text-rose-500 font-bold mb-4">পানির মান রেকর্ড নেই!</p>
-               <p className="text-xs text-slate-400">ভালো পরামর্শের জন্য পানির মান আপডেট করুন</p>
+             <div className="text-center py-12 px-6 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100">
+               <p className="text-rose-500 font-black mb-4">পানির কোনো লগ নেই!</p>
+               <p className="text-xs text-slate-400 font-medium">সঠিক পরামর্শের জন্য ড্যাশবোর্ড থেকে পুকুরের পানির মান রেকর্ড করুন।</p>
              </div>
            )}
         </div>
 
-        <div className="lg:col-span-2 bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden min-h-[400px]">
-           <div className="absolute top-0 right-0 p-8 opacity-5 text-9xl">💡</div>
-           <h3 className="text-2xl font-black mb-8 flex items-center gap-3">🤖 এআই চাষ বিশেষজ্ঞের পরামর্শ</h3>
-           {analyzing ? (
-             <div className="space-y-6 animate-pulse">
-                <div className="h-4 bg-white/10 rounded w-3/4"></div>
-                <div className="h-4 bg-white/10 rounded w-full"></div>
-                <div className="h-4 bg-white/10 rounded w-2/3"></div>
-                <p className="text-blue-400 font-bold text-sm">আপনার পুকুরের ডাটা বিশ্লেষণ করা হচ্ছে...</p>
-             </div>
-           ) : (
-             <div className="prose prose-invert max-w-none whitespace-pre-wrap font-medium text-slate-300 leading-relaxed text-lg">
-               {advice || 'পুকুর সিলেক্ট করে পরামর্শ নিন।'}
-             </div>
-           )}
+        <div className="lg:col-span-2 bg-slate-900 text-white p-10 md:p-16 rounded-[4rem] shadow-2xl relative overflow-hidden min-h-[500px]">
+           <div className="absolute top-0 right-0 p-12 opacity-5 text-9xl">🤖</div>
+           <div className="relative z-10">
+              <h3 className="text-3xl font-black mb-10 flex items-center gap-4">
+                 <span className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-2xl">💡</span>
+                 এআই বিশেষজ্ঞের পরামর্শ
+              </h3>
+              
+              {analyzing ? (
+                <div className="space-y-8 animate-pulse">
+                   <div className="h-4 bg-white/10 rounded w-3/4"></div>
+                   <div className="h-4 bg-white/10 rounded w-full"></div>
+                   <div className="h-4 bg-white/10 rounded w-2/3"></div>
+                   <div className="h-4 bg-white/10 rounded w-5/6"></div>
+                   <p className="text-blue-400 font-black text-sm tracking-widest uppercase mt-10">পুকুরের ডাটা বিশ্লেষণ করা হচ্ছে...</p>
+                </div>
+              ) : (
+                <div className="prose prose-invert max-w-none whitespace-pre-wrap font-medium text-slate-300 leading-relaxed text-xl">
+                  {advice || 'পুকুর সিলেক্ট করলে এখানে পরামর্শ লোড হবে।'}
+                </div>
+              )}
+           </div>
         </div>
       </div>
     </div>
