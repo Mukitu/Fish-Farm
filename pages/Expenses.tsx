@@ -74,7 +74,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-black text-slate-800 tracking-tight">খরচের হিসাব</h1>
-        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-rose-600 text-white rounded-[1.5rem] font-black shadow-xl">➕ খরচ যোগ করুন</button>
+        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-rose-600 text-white rounded-[1.5rem] font-black shadow-xl hover:scale-105 transition-all">➕ খরচ যোগ করুন</button>
       </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">

@@ -85,6 +85,9 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 <td className="px-8 py-6"><button onClick={async () => { if(confirm('ডিলিট করবেন?')) { await supabase.from('growth_records').delete().eq('id', rec.id); fetchData(); } }} className="text-rose-300 hover:text-rose-600">🗑️</button></td>
               </tr>
             ))}
+            {!loading && records.length === 0 && (
+              <tr><td colSpan={4} className="text-center py-20 text-slate-300 italic">কোনো রেকর্ড পাওয়া যায়নি।</td></tr>
+            )}
           </tbody>
         </table>
       </div>

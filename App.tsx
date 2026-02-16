@@ -19,7 +19,7 @@ import AdvisoryPage from './pages/Advisory';
 import AdminDashboard from './pages/AdminDashboard';
 import OwnerProfile from './pages/OwnerProfile';
 import ResetPasswordPage from './pages/ResetPassword';
-import AccountSettings from './pages/AccountSettings'; // New
+import AccountSettings from './pages/AccountSettings';
 import { UserProfile, SubscriptionStatus, UserRole, Pond } from './types';
 
 const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
@@ -103,9 +103,9 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const fetchData = async () => {
     try {
-      const { data: exp } = await supabase.from('expenses').select('amount');
-      const { data: sale } = await supabase.from('sales').select('amount');
-      const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' });
+      const { data: exp } = await supabase.from('expenses').select('amount').eq('user_id', user.id);
+      const { data: sale } = await supabase.from('sales').select('amount').eq('user_id', user.id);
+      const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' }).eq('user_id', user.id);
       
       if (pondList) setPonds(pondList);
       const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
@@ -123,19 +123,19 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
     if (!metricForm.pond_id) return alert('পুকুর নির্বাচন করুন');
     setSavingMetric(true);
     try {
-      const { data: authUser } = await supabase.auth.getUser();
       const { error } = await supabase.from('water_logs').insert([{
-        user_id: authUser.user?.id,
+        user_id: user.id,
         pond_id: metricForm.pond_id,
         oxygen: parseFloat(metricForm.oxygen || '0'),
         ph: parseFloat(metricForm.ph || '0'),
-        temp: parseFloat(metricForm.temp || '0')
+        temp: parseFloat(metricForm.temp || '0'),
+        date: new Date().toISOString().split('T')[0]
       }]);
       if (error) throw error;
       setMetricForm({ pond_id: '', oxygen: '', ph: '', temp: '' });
-      alert("পানির মান সংরক্ষিত হয়েছে!");
+      alert("✅ পানির মান সংরক্ষিত হয়েছে!");
     } catch (err: any) {
-      alert(err.message);
+      alert("ত্রুটি: " + err.message);
     } finally {
       setSavingMetric(false);
     }
@@ -143,7 +143,6 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   return (
     <div className="space-y-8 pb-12 font-sans">
-      {/* Subscription Card */}
       <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-8 shadow-2xl">
          <div className="absolute top-0 left-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full"></div>
          <div className="relative z-10 space-y-2">
