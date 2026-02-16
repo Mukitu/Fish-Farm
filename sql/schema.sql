@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.ponds (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৩. পোনা মজুদ টেবিল (সব ফিচারের সাথে কানেক্টেড)
+-- ৩. পোনা মজুদ টেবিল
 CREATE TABLE IF NOT EXISTS public.stocking_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS পলিসিগুলো প্রয়োগ
+-- RLS পলিসিগুলো প্রয়োগ (DROP then CREATE to avoid already exists error)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stocking_records ENABLE ROW LEVEL SECURITY;
@@ -94,9 +94,20 @@ ALTER TABLE public.feed_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Own Profile Access" ON public.profiles;
 CREATE POLICY "Own Profile Access" ON public.profiles FOR ALL USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Own Ponds Access" ON public.ponds;
 CREATE POLICY "Own Ponds Access" ON public.ponds FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Own Stocking Access" ON public.stocking_records;
 CREATE POLICY "Own Stocking Access" ON public.stocking_records FOR ALL USING (EXISTS (SELECT 1 FROM ponds WHERE id = stocking_records.pond_id AND user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "Own Feeds Access" ON public.feed_logs;
 CREATE POLICY "Own Feeds Access" ON public.feed_logs FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Own Expenses Access" ON public.expenses;
 CREATE POLICY "Own Expenses Access" ON public.expenses FOR ALL USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Own Sales Access" ON public.sales;
 CREATE POLICY "Own Sales Access" ON public.sales FOR ALL USING (auth.uid() = user_id);
