@@ -31,22 +31,11 @@ export interface Pond {
   fish_type: string;
   stock_date: string;
   is_active: boolean;
-  total_stocked_count?: number;
-  total_stocked_weight_kg?: number;
-  avg_stocked_weight_gm?: number;
+  total_count?: number;
+  total_weight?: number;
+  avg_weight?: number;
 }
 
-export interface StockingRecord {
-  id: string;
-  pond_id: string;
-  species: string;
-  count: number;
-  total_weight_kg: number;
-  avg_weight_gm: number;
-  date: string;
-}
-
-// Added InventoryItem interface to fix "Module '"../types"' has no exported member 'InventoryItem'" errors
 export interface InventoryItem {
   id: string;
   user_id: string;
