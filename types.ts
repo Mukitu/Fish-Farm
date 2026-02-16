@@ -23,18 +23,6 @@ export interface UserProfile {
   avatar_url?: string;
 }
 
-export interface InventoryItem {
-  id: string;
-  user_id: string;
-  name: string;
-  quantity: number;
-  unit: string;
-  type: 'খাবার' | 'ওষুধ' | 'অন্যান্য';
-  price_per_unit?: number;
-  custom_properties?: any;
-  low_stock_threshold: number;
-}
-
 export interface Pond {
   id: string;
   user_id: string;
@@ -43,34 +31,31 @@ export interface Pond {
   fish_type: string;
   stock_date: string;
   is_active: boolean;
+  total_stocked_count?: number;
+  total_stocked_weight_kg?: number;
+  avg_stocked_weight_gm?: number;
 }
 
-export interface GrowthRecord {
+export interface StockingRecord {
+  id: string;
+  pond_id: string;
+  species: string;
+  count: number;
+  total_weight_kg: number;
+  avg_weight_gm: number;
+  date: string;
+}
+
+// Added InventoryItem interface to fix "Module '"../types"' has no exported member 'InventoryItem'" errors
+export interface InventoryItem {
   id: string;
   user_id: string;
-  pond_id: string;
-  avg_weight_gm: number;
-  sample_count: number;
-  date: string;
-}
-
-export interface ExpenseRecord {
-  id: string;
-  pond_id: string;
-  category: string;
-  item_name: string;
-  amount: number;
-  weight?: number;
-  date: string;
-}
-
-export interface SaleRecord {
-  id: string;
-  pond_id: string;
-  item_name: string;
-  amount: number;
-  weight: number;
-  date: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  type: string;
+  low_stock_threshold: number;
+  created_at?: string;
 }
 
 export const SUBSCRIPTION_PLANS = [
