@@ -22,7 +22,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const [recommendation, setRecommendation] = useState<number | null>(null);
 
-  // ডাটা লোড করার প্রধান ফাংশন
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -46,13 +45,13 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       if (iError) throw iError;
       setInventory(iData as InventoryItem[] || []);
 
-      // ৩. ফিড লগ (ইতিহাস) আনা
+      // ৩. ফিড লগ (ইতিহাস) আনা - এখানে !inventory_id দিয়ে নির্দিষ্ট করা হয়েছে
       const { data: lData, error: lError } = await supabase
         .from('feed_logs')
         .select(`
           *,
           ponds ( name ),
-          inventory ( name )
+          inventory!inventory_id ( name )
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -61,8 +60,13 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setLogs(lData || []);
 
     } catch (err: any) { 
-      console.error("Fetch Error:", err);
-      alert("ডাটা আনতে সমস্যা হয়েছে: " + err.message);
+      console.error("Fetch Error Detail:", err);
+      // ইউজার ফ্রেন্ডলি মেসেজ
+      if (err.message.includes('relationship')) {
+        alert("ডাটাবেজ রিলেশনশিপে সমস্যা। দয়া করে SQL Editor এ দেওয়া কোডটি রান করুন।");
+      } else {
+        alert("ডাটা আনতে সমস্যা হয়েছে: " + err.message);
+      }
     } finally { 
       setLoading(false); 
     }
@@ -79,7 +83,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       return;
     }
 
-    // পরামর্শ ক্যালকুলেশন (বায়োমাসের ৩% স্ট্যান্ডার্ড)
     try {
       const { data: pondDetail } = await supabase
         .from('ponds')
@@ -103,7 +106,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         }
       }
     } catch (e) {
-      console.error("Recommendation Error:", e);
       setRecommendation(null);
     }
   };
@@ -125,7 +127,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
     setSaving(true);
     try {
-      // ১. ফিড লগ সেভ
       const { error: logError } = await supabase.from('feed_logs').insert([{
         user_id: user.id,
         pond_id: newLog.pond_id,
@@ -138,19 +139,17 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       if (logError) throw logError;
 
-      // ২. ইনভেন্টরি স্টক কমানো
       const { error: invError } = await supabase.from('inventory')
         .update({ quantity: Number(selectedFeed.quantity) - applyAmount })
         .eq('id', newLog.inventory_id);
       
       if (invError) throw invError;
 
-      // সাকসেস স্টেট
       setIsModalOpen(false);
       setNewLog({ pond_id: '', inventory_id: '', amount: '', bags: '', time: 'সকাল' });
       setRecommendation(null);
       
-      await fetchData(); // নতুন ডাটা সহ রিফ্রেশ
+      await fetchData();
       alert("✅ খাবার প্রয়োগ সফলভাবে সংরক্ষিত হয়েছে!");
     } catch (err: any) { 
       alert("ত্রুটি: " + err.message); 
@@ -215,8 +214,8 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <span className="block text-slate-800">{new Date(log.date).toLocaleDateString('bn-BD')}</span>
                   <span className="text-blue-500 text-[10px] font-black uppercase">{log.time}</span>
                 </td>
-                <td className="px-8 py-6 font-black text-slate-800">{log.ponds?.name || 'লোডিং...'}</td>
-                <td className="px-8 py-6 text-slate-500 font-bold">{log.inventory?.name || 'লোডিং...'}</td>
+                <td className="px-8 py-6 font-black text-slate-800">{log.ponds?.name || 'অজানা'}</td>
+                <td className="px-8 py-6 text-slate-500 font-bold">{log.inventory?.name || 'অজানা'}</td>
                 <td className="px-8 py-6 text-center">
                    <div className="font-black text-blue-600">{log.amount} কেজি</div>
                    {log.bags > 0 && <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{log.bags} বস্তা</div>}
@@ -256,7 +255,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   onChange={e => handlePondChange(e.target.value)} 
                   className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100 focus:ring-2 focus:ring-blue-600 outline-none"
                 >
-                  <option value="">পুকুর বেছে নিন ({ponds.length}টি পাওয়া গেছে)</option>
+                  <option value="">পুকুর বেছে নিন</option>
                   {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
@@ -281,7 +280,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   onChange={e => setNewLog(prev => ({ ...prev, inventory_id: e.target.value }))} 
                   className="w-full px-5 py-4 bg-slate-50 rounded-2xl font-bold border-none ring-1 ring-slate-100 focus:ring-2 focus:ring-blue-600 outline-none"
                 >
-                  <option value="">খাবার বেছে নিন ({inventory.length}টি পাওয়া গেছে)</option>
+                  <option value="">খাবার বেছে নিন</option>
                   {inventory.map(i => (
                     <option key={i.id} value={i.id}>
                       {i.name} (মজুদ: {i.quantity} kg)
