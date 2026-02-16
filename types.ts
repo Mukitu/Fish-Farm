@@ -19,6 +19,8 @@ export interface UserProfile {
   max_ponds: number;
   phone?: string;
   farm_name?: string;
+  full_name?: string;
+  avatar_url?: string;
 }
 
 export interface InventoryItem {

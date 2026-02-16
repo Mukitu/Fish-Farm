@@ -32,6 +32,12 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAddPond = async () => {
+    // লিমিট চেক
+    if (user.max_ponds !== 999 && ponds.length >= user.max_ponds) {
+      alert(`আপনার প্যাকেজ অনুযায়ী আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন। আরও পুকুর যোগ করতে দয়া করে আপনার প্যাকেজ আপগ্রেড করুন।`);
+      return;
+    }
+
     if (!newPond.name || !newPond.area || !newPond.fish_type) {
       alert('অনুগ্রহ করে সবগুলো ঘর পূরণ করুন।');
       return;
@@ -63,7 +69,6 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       }
     } catch (err: any) {
       alert("ত্রুটি: " + (err.message || "ডাটা সেভ করা যায়নি"));
-      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -71,11 +76,11 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">আমার পুকুরসমূহ</h1>
           <p className="text-sm text-slate-500 font-bold mt-1">
-            মোট পুকুর: <span className="text-blue-600 font-black">{ponds.length}</span>
+            লিমিট: <span className="text-blue-600 font-black">{ponds.length} / {user.max_ponds === 999 ? 'Unlimited' : user.max_ponds}</span>
           </p>
         </div>
         <button 
