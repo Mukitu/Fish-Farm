@@ -18,9 +18,11 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Fetch all ponds belonging to the user
       const { data: pondData } = await supabase.from('ponds').select('*').eq('user_id', user.id);
       if (pondData) setPonds(pondData);
 
+      // Fetch all expenses with pond names
       const { data: expData } = await supabase.from('expenses')
         .select('*, ponds(name)')
         .eq('user_id', user.id)
@@ -96,7 +98,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               ) : expenses.map(exp => (
                 <tr key={exp.id} className="hover:bg-slate-50 transition">
                   <td className="px-8 py-6 text-xs font-bold">{new Date(exp.date).toLocaleDateString('bn-BD')}</td>
-                  <td className="px-8 py-6 font-black">{exp.ponds?.name || 'অজানা'}</td>
+                  <td className="px-8 py-6 font-black">{exp.ponds?.name || 'সাধারণ'}</td>
                   <td className="px-8 py-6">
                     <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black">{exp.category}</span>
                   </td>
@@ -107,6 +109,9 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   </td>
                 </tr>
               ))}
+              {!loading && expenses.length === 0 && (
+                <tr><td colSpan={6} className="text-center py-20 text-slate-300 italic">কোনো খরচের রেকর্ড পাওয়া যায়নি</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -117,22 +122,24 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
             <h3 className="text-2xl font-black text-slate-800 text-center">নতুন খরচ যোগ করুন</h3>
             <div className="space-y-4">
-              <select value={newExp.pond_id} onChange={e => setNewExp({...newExp, pond_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold">
+              <select value={newExp.pond_id} onChange={e => setNewExp({...newExp, pond_id: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none">
                 <option value="">পুকুর নির্বাচন করুন</option>
                 {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <select value={newExp.category} onChange={e => setNewExp({...newExp, category: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold">
+              <select value={newExp.category} onChange={e => setNewExp({...newExp, category: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none">
                 <option value="খাবার">খাবার</option>
                 <option value="ঔষধ">ঔষধ</option>
                 <option value="পোনা">পোনা</option>
                 <option value="অন্যান্য">অন্যান্য</option>
               </select>
-              <input type="text" placeholder="বিবরণ (উদা: ২৫ বস্তা ফিড)" value={newExp.item_name} onChange={e => setNewExp({...newExp, item_name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
-              <input type="number" placeholder="টাকার পরিমাণ (৳)" value={newExp.amount} onChange={e => setNewExp({...newExp, amount: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-rose-600" />
+              <input type="text" placeholder="বিবরণ (উদা: ২৫ বস্তা নারিশ ফিড)" value={newExp.item_name} onChange={e => setNewExp({...newExp, item_name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
+              <input type="number" placeholder="টাকার পরিমাণ (৳)" value={newExp.amount} onChange={e => setNewExp({...newExp, amount: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-rose-600 outline-none" />
             </div>
             <div className="flex gap-4 pt-4">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black">{saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ'}</button>
+              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black shadow-xl disabled:opacity-50">
+                {saving ? 'সেভ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </button>
             </div>
           </div>
         </div>
