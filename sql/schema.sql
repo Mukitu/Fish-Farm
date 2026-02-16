@@ -37,7 +37,92 @@ CREATE TABLE IF NOT EXISTS public.ponds (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৩. পোনা মজুদ টেবিল
+-- ৩. গুদাম (Inventory) টেবিল
+CREATE TABLE IF NOT EXISTS public.inventory (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    quantity DECIMAL DEFAULT 0,
+    unit TEXT DEFAULT 'কেজি',
+    type TEXT DEFAULT 'খাবার',
+    low_stock_threshold DECIMAL DEFAULT 10,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৪. খাবারের ক্রয় ইতিহাস
+CREATE TABLE IF NOT EXISTS public.feed_purchases (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE SET NULL,
+    feed_name TEXT NOT NULL,
+    bags INTEGER NOT NULL,
+    kg_per_bag DECIMAL NOT NULL,
+    price_per_bag DECIMAL NOT NULL,
+    total_weight DECIMAL NOT NULL,
+    total_price DECIMAL NOT NULL,
+    purchase_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৫. খাবারের লগ টেবিল (খাবার প্রয়োগ)
+CREATE TABLE IF NOT EXISTS public.feed_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
+    inventory_id UUID REFERENCES public.inventory(id) ON DELETE SET NULL,
+    amount DECIMAL NOT NULL,
+    time TEXT DEFAULT 'সকাল',
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৬. পানির মান লগ টেবিল
+CREATE TABLE IF NOT EXISTS public.water_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE NOT NULL,
+    oxygen DECIMAL DEFAULT 0,
+    ph DECIMAL DEFAULT 0,
+    temp DECIMAL DEFAULT 0,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৭. মাছের বৃদ্ধি রেকর্ড টেবিল
+CREATE TABLE IF NOT EXISTS public.growth_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE NOT NULL,
+    avg_weight_gm DECIMAL NOT NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৮. খরচের টেবিল
+CREATE TABLE IF NOT EXISTS public.expenses (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE SET NULL,
+    category TEXT NOT NULL,
+    item_name TEXT,
+    amount DECIMAL NOT NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ৯. বিক্রির টেবিল
+CREATE TABLE IF NOT EXISTS public.sales (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+    pond_id UUID REFERENCES public.ponds(id) ON DELETE SET NULL,
+    item_name TEXT,
+    amount DECIMAL NOT NULL,
+    weight DECIMAL NOT NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ১০. পোনা মজুদ টেবিল
 CREATE TABLE IF NOT EXISTS public.stocking_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
@@ -49,65 +134,20 @@ CREATE TABLE IF NOT EXISTS public.stocking_records (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ৪. খাবারের লগ টেবিল
-CREATE TABLE IF NOT EXISTS public.feed_logs (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
-    feed_item TEXT DEFAULT 'সাধারণ খাবার',
-    amount DECIMAL NOT NULL,
-    time TEXT DEFAULT 'সকাল',
-    date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ৫. খরচের টেবিল
-CREATE TABLE IF NOT EXISTS public.expenses (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
-    category TEXT NOT NULL,
-    item_name TEXT,
-    amount DECIMAL NOT NULL,
-    weight DECIMAL DEFAULT 0,
-    date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ৬. বিক্রির টেবিল
-CREATE TABLE IF NOT EXISTS public.sales (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-    pond_id UUID REFERENCES public.ponds(id) ON DELETE CASCADE,
-    item_name TEXT,
-    amount DECIMAL NOT NULL,
-    weight DECIMAL NOT NULL,
-    date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- RLS পলিসিগুলো প্রয়োগ (DROP then CREATE to avoid already exists error)
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ponds ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.stocking_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feed_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Own Profile Access" ON public.profiles;
-CREATE POLICY "Own Profile Access" ON public.profiles FOR ALL USING (auth.uid() = id);
-
-DROP POLICY IF EXISTS "Own Ponds Access" ON public.ponds;
-CREATE POLICY "Own Ponds Access" ON public.ponds FOR ALL USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Own Stocking Access" ON public.stocking_records;
-CREATE POLICY "Own Stocking Access" ON public.stocking_records FOR ALL USING (EXISTS (SELECT 1 FROM ponds WHERE id = stocking_records.pond_id AND user_id = auth.uid()));
-
-DROP POLICY IF EXISTS "Own Feeds Access" ON public.feed_logs;
-CREATE POLICY "Own Feeds Access" ON public.feed_logs FOR ALL USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Own Expenses Access" ON public.expenses;
-CREATE POLICY "Own Expenses Access" ON public.expenses FOR ALL USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Own Sales Access" ON public.sales;
-CREATE POLICY "Own Sales Access" ON public.sales FOR ALL USING (auth.uid() = user_id);
+-- RLS পলিসি প্রয়োগ
+DO $$ 
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' 
+    LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+        EXECUTE format('DROP POLICY IF EXISTS "User Access Policy" ON public.%I', tbl);
+        
+        IF tbl = 'profiles' THEN
+             EXECUTE format('CREATE POLICY "User Access Policy" ON public.%I FOR ALL USING (auth.uid() = id)', tbl);
+        ELSE
+             EXECUTE format('CREATE POLICY "User Access Policy" ON public.%I FOR ALL USING (auth.uid() = user_id)', tbl);
+        END IF;
+    END LOOP;
+END $$;

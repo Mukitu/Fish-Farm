@@ -26,7 +26,11 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         setSelectedPond(initialPond);
         await getAdvice(initialPond);
       }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error("Fetch Data Error:", e); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const getAdvice = async (pond: any) => {
@@ -46,13 +50,15 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       const prompt = `পুকুরের নাম: ${pond.name}, মাছের ধরণ: ${pond.fish_type}. পানির বর্তমান মান: অক্সিজেন: ${water?.oxygen || 'অজানা'}, pH: ${water?.ph || 'অজানা'}, তাপমাত্রা: ${water?.temp || 'অজানা'}। এই তথ্য অনুযায়ী মাছের মৃত্যুঝুঁকি কমাতে এবং দ্রুত বৃদ্ধি করতে ৩টি কার্যকরী পরামর্শ বাংলায় দিন।`;
       
       const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model: "gemini-2.0-flash-exp", // Stable and fast for simple text tasks
         contents: prompt,
-        config: { thinkingConfig: { thinkingBudget: 15000 } },
       });
-      setAdvice(response.text || 'দুঃখিত, কোনো পরামর্শ পাওয়া যায়নি।');
-    } catch (e) {
-      setAdvice('ডাটা আপডেট করুন এবং পুনরায় চেষ্টা করুন। নিশ্চিত করুন যে আপনার ইন্টারনেট সংযোগ সচল আছে।');
+
+      const text = response.text;
+      setAdvice(text || 'দুঃখিত, কোনো পরামর্শ পাওয়া যায়নি। অনুগ্রহ করে ডাটা পুনরায় চেক করুন।');
+    } catch (e: any) {
+      console.error("AI Generation Error:", e);
+      setAdvice('এআই পরামর্শ তৈরি করতে সমস্যা হয়েছে। আপনার এপিআই কী চেক করুন এবং নিশ্চিত করুন যে আপনার পুকুরের পানির মান সঠিক আছে।');
     } finally {
       setAnalyzing(false);
     }
@@ -66,10 +72,15 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
-  if (loading) return <div className="text-center py-20 font-black text-blue-600 animate-pulse">খামারের তথ্য বিশ্লেষণ হচ্ছে...</div>;
+  if (loading) return (
+    <div className="min-h-[400px] flex items-center justify-center bg-white flex-col gap-4">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="font-black text-blue-600">খামারের তথ্য বিশ্লেষণ হচ্ছে...</p>
+    </div>
+  );
 
   return (
-    <div className="space-y-10 pb-20">
+    <div className="space-y-10 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
            <h1 className="text-4xl font-black text-slate-800 tracking-tight">স্মার্ট চাষ গাইড</h1>
@@ -105,7 +116,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <span className="opacity-60 group-hover:opacity-100">তাপমাত্রা:</span> 
                   <span className="font-black">{latestWater.temp}°C</span>
                 </div>
-                <p className="text-[10px] text-center text-slate-400 font-black mt-4 uppercase">সর্বশেষ আপডেট: {new Date(latestWater.date).toLocaleDateString('bn-BD')}</p>
+                <p className="text-[10px] text-center text-slate-400 font-black mt-4 uppercase tracking-tighter">সর্বশেষ আপডেট: {new Date(latestWater.date).toLocaleDateString('bn-BD')}</p>
              </div>
            ) : (
              <div className="text-center py-12 px-6 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100">
