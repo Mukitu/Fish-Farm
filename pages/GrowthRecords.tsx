@@ -38,9 +38,10 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         user_id: user.id,
         pond_id: newRec.pond_id,
         avg_weight_gm: parseFloat(newRec.avg_weight_gm),
-        sample_count: parseInt(newRec.sample_count || '0'), // নাল এরর ঠেকাতে ০ ডিফল্ট করা হলো
+        sample_count: parseInt(newRec.sample_count || '0'), // নাল এরর ঠেকাতে ডিফল্ট ০
         date: new Date().toISOString().split('T')[0]
       }]);
+      
       if (error) throw error;
       
       setIsModalOpen(false);
@@ -77,7 +78,7 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           </thead>
           <tbody className="divide-y divide-slate-50 text-slate-700">
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-20 font-bold text-indigo-600">লোড হচ্ছে...</td></tr>
+              <tr><td colSpan={5} className="text-center py-20 font-bold text-indigo-600 animate-pulse">লোড হচ্ছে...</td></tr>
             ) : records.map(rec => (
               <tr key={rec.id} className="hover:bg-slate-50 transition group">
                 <td className="px-8 py-6 font-bold">{new Date(rec.date).toLocaleDateString('bn-BD')}</td>
@@ -89,6 +90,9 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 </td>
               </tr>
             ))}
+            {!loading && records.length === 0 && (
+              <tr><td colSpan={5} className="text-center py-20 text-slate-300 italic">কোনো গ্রোথ রেকর্ড নেই।</td></tr>
+            )}
           </tbody>
         </table>
       </div>

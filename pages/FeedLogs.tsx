@@ -21,21 +21,35 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const [recommendation, setRecommendation] = useState<number | null>(null);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // পুকুর এবং তাদের সর্বশেষ স্টক ও গ্রোথ রেকর্ড আনা হচ্ছে
+      // পুকুর এবং তাদের ডাটা আনা
       const { data: pData } = await supabase.from('ponds')
         .select(`*, stocking_records(*), growth_records(*)`)
         .eq('user_id', user.id);
       
-      const { data: iData } = await supabase.from('inventory').select('*').eq('user_id', user.id).eq('type', 'খাবার');
-      const { data: lData } = await supabase.from('feed_logs')
-        .select('*, ponds(name), inventory(name)')
+      // খাবার ইনভেন্টরি আনা
+      const { data: iData } = await supabase.from('inventory')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('type', 'খাবার');
+
+      // খাবার প্রয়োগের ইতিহাস আনা
+      const { data: lData, error: lError } = await supabase.from('feed_logs')
+        .select(`
+          *,
+          ponds ( name ),
+          inventory ( name )
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
+      if (lError) console.error("Log Fetch Error:", lError);
 
       if (pData) setPonds(pData);
       if (iData) setInventory(iData as InventoryItem[]);
@@ -47,7 +61,6 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
-  // পুকুর পরিবর্তনের সাথে সাথে পরামর্শ ক্যালকুলেশন
   const handlePondChange = (pondId: string) => {
     setNewLog({ ...newLog, pond_id: pondId });
     if (!pondId) {
@@ -57,14 +70,21 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
     const pond = ponds.find(p => p.id === pondId);
     if (pond) {
+      // মাছের মোট সংখ্যা
       const totalCount = pond.stocking_records?.reduce((a: any, b: any) => a + Number(b.count), 0) || 0;
-      const latestGrowth = pond.growth_records?.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      
+      // সর্বশেষ গড় ওজন (Growth Records থেকে অথবা Stocking থেকে)
+      const sortedGrowth = pond.growth_records?.sort((a: any, b: any) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const latestGrowth = sortedGrowth?.[0];
+      
       const avgWeight = latestGrowth ? latestGrowth.avg_weight_gm : (pond.stocking_records?.[0]?.avg_weight_gm || 0);
       
       if (totalCount > 0 && avgWeight > 0) {
-        // বায়োমাস ক্যালকুলেশন (মাছের ওজন * সংখ্যা)
+        // বায়োমাস ক্যালকুলেশন (মাছের মোট ওজন কেজি তে)
         const biomassKg = (totalCount * avgWeight) / 1000;
-        // ৩% খাবার পরামর্শ (মাছের ওজনের ৩ শতাংশ)
+        // ৩% খাবার পরামর্শ
         const recAmount = biomassKg * 0.03;
         setRecommendation(parseFloat(recAmount.toFixed(2)));
       } else {
@@ -82,7 +102,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
     const selectedFeed = inventory.find(i => i.id === newLog.inventory_id);
     if (!selectedFeed || Number(selectedFeed.quantity) < applyAmount) {
-      alert(`⚠️ পর্যাপ্ত মজুদ নেই! আছে: ${selectedFeed?.quantity || 0} কেজি`);
+      alert(`⚠️ পর্যাপ্ত মজুদ নেই! গুদামে আছে: ${selectedFeed?.quantity || 0} কেজি`);
       return;
     }
 
@@ -99,6 +119,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       if (logError) throw logError;
 
+      // ইনভেন্টরি থেকে পরিমাণ কমানো
       await supabase.from('inventory')
         .update({ quantity: Number(selectedFeed.quantity) - applyAmount })
         .eq('id', newLog.inventory_id);
@@ -106,6 +127,8 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setIsModalOpen(false);
       setNewLog({ pond_id: '', inventory_id: '', amount: '', time: 'সকাল' });
       setRecommendation(null);
+      
+      // ডাটা রিফ্রেশ করা
       await fetchData();
       alert("✅ খাবার প্রয়োগ সফলভাবে সংরক্ষিত হয়েছে!");
     } catch (err: any) { 
@@ -139,7 +162,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         </select>
       </div>
 
-      <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
         <table className="w-full text-left">
           <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
             <tr>
@@ -165,7 +188,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               </tr>
             ))}
             {!loading && filteredLogs.length === 0 && (
-              <tr><td colSpan={5} className="text-center py-20 text-slate-300 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+              <tr><td colSpan={5} className="text-center py-24 text-slate-300 italic font-bold">কোনো রেকর্ড পাওয়া যায়নি। পেমেন্ট বা পুকুর চেক করুন।</td></tr>
             )}
           </tbody>
         </table>
