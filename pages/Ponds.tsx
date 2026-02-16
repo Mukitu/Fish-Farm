@@ -32,9 +32,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAddPond = async () => {
-    // লিমিট চেক
     if (user.max_ponds !== 999 && ponds.length >= user.max_ponds) {
-      alert(`আপনার প্যাকেজ অনুযায়ী আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন। আরও পুকুর যোগ করতে দয়া করে আপনার প্যাকেজ আপগ্রেড করুন।`);
+      alert(`আপনার প্যাকেজ অনুযায়ী আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন।`);
       return;
     }
 
@@ -60,17 +59,27 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       ]).select();
 
       if (error) throw error;
-
       if (data) {
         setPonds([data[0], ...ponds]);
         setIsModalOpen(false);
         setNewPond({ name: '', area: '', fish_type: '' });
-        alert("সফলভাবে পুকুর যোগ করা হয়েছে!");
       }
     } catch (err: any) {
       alert("ত্রুটি: " + (err.message || "ডাটা সেভ করা যায়নি"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeletePond = async (id: string, name: string) => {
+    if (confirm(`আপনি কি "${name}" পুকুরটি ডিলিট করতে চান? এটি ডিলিট করলে এই পুকুরের সাথে যুক্ত সব খরচ এবং বিক্রির হিসাবও ডিলিট হয়ে যাবে!`)) {
+      const { error } = await supabase.from('ponds').delete().eq('id', id);
+      if (!error) {
+        setPonds(ponds.filter(p => p.id !== id));
+        alert("পুকুরটি সফলভাবে ডিলিট করা হয়েছে।");
+      } else {
+        alert("ডিলিট করা যায়নি। আবার চেষ্টা করুন।");
+      }
     }
   };
 
@@ -96,9 +105,17 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {ponds.map(pond => (
-            <div key={pond.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-all group">
+            <div key={pond.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-all group relative">
+              <button 
+                onClick={() => handleDeletePond(pond.id, pond.name)}
+                className="absolute top-6 right-6 w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white"
+                title="পুকুর ডিলিট করুন"
+              >
+                🗑️
+              </button>
+              
               <div className="flex justify-between items-start mb-6">
-                <h3 className="text-xl font-black text-slate-800">{pond.name}</h3>
+                <h3 className="text-xl font-black text-slate-800 pr-10">{pond.name}</h3>
                 <span className="bg-green-100 text-green-700 text-[10px] px-3 py-1 rounded-full font-black">সক্রিয়</span>
               </div>
               <div className="space-y-4">
