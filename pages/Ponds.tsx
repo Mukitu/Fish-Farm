@@ -42,9 +42,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAddPond = async () => {
-    // প্যাকেজ লিমিট কঠোরভাবে চেক
     if (ponds.length >= user.max_ponds) {
-      alert(`⚠️ আপনার প্যাকেজ লিমিট শেষ! আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন। অনুগ্রহ করে প্যাকেজ আপগ্রেড করুন।`);
+      alert(`⚠️ আপনার প্যাকেজ লিমিট শেষ! আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন। প্যাকেজ আপগ্রেড করুন।`);
       return;
     }
 
@@ -73,7 +72,6 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     setSaving(true);
     try {
       const { error } = await supabase.from('stocking_records').insert([{
-        user_id: user.id,
         pond_id: selectedPond.id,
         species: stocking.species || selectedPond.fish_type,
         count: parseInt(stocking.count),
@@ -95,7 +93,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">আমার পুকুরসমূহ</h1>
           <p className="text-slate-500 font-bold">প্যাকেজ ব্যবহার: {ponds.length} / {user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds}</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl hover:scale-105 transition-all">➕ নতুন পুকুর</button>
+        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl">➕ নতুন পুকুর</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -122,7 +120,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 </div>
               </div>
 
-              <button onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg">🐟 পোনা মজুদ</button>
+              <button onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">🐟 পোনা মজুদ</button>
             </div>
           ))
         )}
@@ -130,8 +128,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 animate-in zoom-in-95">
-            <h3 className="text-2xl font-black text-center">নতুন পুকুর যোগ করুন</h3>
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
+            <h3 className="text-2xl font-black text-center">নতুন পুকুর যোগ</h3>
             <div className="space-y-4">
               <input type="text" placeholder="পুকুরের নাম" value={newPond.name} onChange={e => setNewPond({...newPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
               <input type="number" placeholder="আয়তন (শতাংশ)" value={newPond.area} onChange={e => setNewPond({...newPond, area: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
@@ -147,8 +145,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {isStockModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6 animate-in zoom-in-95">
-            <h3 className="text-2xl font-black text-center">মাছ মজুদ করুন</h3>
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
+            <h3 className="text-2xl font-black text-center">মাছ পোনা মজুদ</h3>
             <div className="space-y-4">
               <input type="number" placeholder="সংখ্যা (পিস)" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
               <input type="number" placeholder="মোট ওজন (কেজি)" value={stocking.total_weight} onChange={e => setStocking({...stocking, total_weight: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
