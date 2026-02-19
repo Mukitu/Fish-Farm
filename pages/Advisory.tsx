@@ -317,10 +317,11 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
 
             {/* Timeline Selector */}
-            {timeline.length > 0 && (
-              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 overflow-x-auto no-scrollbar">
-                <div className="flex gap-3 min-w-max">
-                  {Array.from(new Set(timeline.map(t => t.month_number))).sort((a, b) => a - b).map((month) => (
+            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 overflow-x-auto no-scrollbar">
+              <div className="flex gap-3 min-w-max">
+                {[...Array(parseInt(plannerForm.months))].map((_, i) => {
+                  const month = i + 1;
+                  return (
                     <button
                       key={month}
                       onClick={() => setActiveMonth(month)}
@@ -333,92 +334,89 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                       <span className="text-[8px] opacity-70 uppercase">মাস</span>
                       <span className="text-sm">{month}</span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
 
             {/* Main Content Area */}
             <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm min-h-[400px]">
-              {activeGuides.length > 0 ? (
-                <div className="space-y-8">
-                  <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
-                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                      <Calendar className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-800">সম্মিলিত চাষ গাইড</h2>
-                      <p className="text-slate-400 font-bold text-sm">
-                        {activeGuides.map(g => g.species_name).join(', ')} এর জন্য সমন্বিত পরামর্শ
-                      </p>
-                    </div>
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
+                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <Calendar className="w-6 h-6" />
                   </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-800">সম্মিলিত চাষ গাইড</h2>
+                    <p className="text-slate-400 font-bold text-sm">
+                      {activeGuides.length > 0 ? activeGuides.map(g => g.species_name).join(', ') : 'কার্প মিশ্র চাষ (রুই, কাতলা, মৃগেল)'} এর জন্য সমন্বিত পরামর্শ
+                    </p>
+                  </div>
+                </div>
 
+                {/* Combined Tasks from Planner and DB */}
+                <div className="space-y-6">
+                  {/* Planner Task for Active Month */}
+                  {planResult && planResult.monthlySchedule[activeMonth - 1] && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6">
+                      <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100">
+                        <div className="flex items-center gap-2 mb-3 text-blue-600">
+                          <Droplets className="w-4 h-4" />
+                          <h4 className="text-[10px] font-black uppercase tracking-widest">মাস {activeMonth} - প্রধান কাজ</h4>
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 mb-3">{planResult.monthlySchedule[activeMonth - 1].task}</h3>
+                        <div className="space-y-2 text-sm font-bold text-slate-600">
+                          <p>• চুন: {planResult.monthlySchedule[activeMonth - 1].lime} কেজি</p>
+                          <p>• খাবার: {planResult.monthlySchedule[activeMonth - 1].feed} কেজি (মাসিক)</p>
+                          <p>• সার: ইউরিয়া {planResult.monthlySchedule[activeMonth - 1].fertilizer.urea} গ্রাম, টিএসপি {planResult.monthlySchedule[activeMonth - 1].fertilizer.tsp} গ্রাম</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
+                        <div className="flex items-center gap-2 mb-3 text-rose-600">
+                          <ShieldCheck className="w-4 h-4" />
+                          <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
+                        </div>
+                        <p className="text-rose-900 font-black text-base leading-relaxed">
+                          {planResult.monthlySchedule[activeMonth - 1].medicine}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Database Timeline Items for Active Month */}
                   {currentTimelineItems.length > 0 ? (
-                    <div className="space-y-6">
-                      {currentTimelineItems.map((item, idx) => (
-                        <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6 last:border-0">
-                          <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                            <div className="flex items-center gap-2 mb-3 text-blue-600">
-                              <Droplets className="w-4 h-4" />
-                              <h4 className="text-[10px] font-black uppercase tracking-widest">
-                                {activeGuides.find(g => g.id === item.guide_id)?.species_name} - করণীয়
-                              </h4>
-                            </div>
-                            <h3 className="text-xl font-black text-slate-800 mb-3">{item.task_title}</h3>
-                            <p className="text-slate-600 font-bold text-sm leading-relaxed">{item.task_description}</p>
+                    currentTimelineItems.map((item, idx) => (
+                      <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6 last:border-0">
+                        <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                          <div className="flex items-center gap-2 mb-3 text-blue-600">
+                            <Droplets className="w-4 h-4" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest">
+                              {activeGuides.find(g => g.id === item.guide_id)?.species_name} - অতিরিক্ত কাজ
+                            </h4>
                           </div>
+                          <h3 className="text-xl font-black text-slate-800 mb-3">{item.task_title}</h3>
+                          <p className="text-slate-600 font-bold text-sm leading-relaxed">{item.task_description}</p>
+                        </div>
 
-                          <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
-                            <div className="flex items-center gap-2 mb-3 text-rose-600">
-                              <ShieldCheck className="w-4 h-4" />
-                              <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
-                            </div>
-                            <p className="text-rose-900 font-black text-base leading-relaxed">
-                              {item.medicine_suggestions || 'কোন নির্দিষ্ট ওষুধ প্রয়োজন নেই।'}
-                            </p>
+                        <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
+                          <div className="flex items-center gap-2 mb-3 text-rose-600">
+                            <ShieldCheck className="w-4 h-4" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
                           </div>
-                        </div>
-                      ))}
-
-                      <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-                        <div className="absolute -right-10 -bottom-10 opacity-10 text-[8rem] font-black">
-                          {activeMonth}
-                        </div>
-                        <div className="relative z-10">
-                          <h3 className="text-xl font-black mb-2">সমন্বিত মুনাফা টিপস</h3>
-                          <p className="text-blue-100 font-bold opacity-90 text-sm max-w-md">
-                            একাধিক প্রজাতির মাছ চাষে খাবারের অপচয় কম হয়। নিয়মিত পানির গুণমান বজায় রাখুন।
+                          <p className="text-rose-900 font-black text-base leading-relaxed">
+                            {item.medicine_suggestions || 'কোন নির্দিষ্ট ওষুধ প্রয়োজন নেই।'}
                           </p>
                         </div>
                       </div>
-                    </div>
-                  ) : (
+                    ))
+                  ) : !planResult && (
                     <div className="text-center py-20">
-                      <p className="text-slate-400 font-bold">এই মাসের জন্য বা এই সাইজের মাছের জন্য কোন নির্দিষ্ট কাজ পাওয়া যায়নি।</p>
+                      <p className="text-slate-400 font-bold">এই মাসের জন্য কোন নির্দিষ্ট কাজ পাওয়া যায়নি। পরিকল্পনা তৈরি করুন।</p>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full py-20 text-center space-y-6">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-4xl grayscale opacity-50">🐟</div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800">সঠিক গাইড নির্বাচন করুন</h3>
-                    <p className="text-slate-400 font-bold text-sm max-w-xs mx-auto mt-2">আপনার পুকুরে কোন মাছ মজুদ করা হয়নি। নিচের তালিকা থেকে একটি গাইড বেছে নিন:</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
-                     {allGuides.map((g) => (
-                       <button
-                         key={g.id}
-                         onClick={() => selectManualGuide(g)}
-                         className="p-4 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-2xl text-left transition-all group"
-                       >
-                          <p className="font-black text-slate-800 group-hover:text-blue-600 text-sm">{g.species_name}</p>
-                       </button>
-                     ))}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Planner Results (if active) */}
