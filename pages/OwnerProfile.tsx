@@ -12,7 +12,7 @@ const OwnerProfile: React.FC = () => {
         <div className="relative inline-block mb-10">
           <div className="absolute inset-0 bg-blue-600 rounded-[3rem] rotate-6 -z-10 opacity-10"></div>
           <img 
-            src="https://i.ibb.co/Xf8zK4v/nishat.jpg" 
+            src="mypic.jpeg" 
             alt="Owner" 
             className="w-48 h-48 md:w-64 md:h-64 rounded-[3rem] border-8 border-white shadow-2xl object-cover"
           />
