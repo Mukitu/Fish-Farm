@@ -28,42 +28,72 @@ const App: React.FC = () => {
   const navigate = useNavigate();
 
   const fetchProfile = async (id: string) => {
-    if (!id) { setUser(null); setLoading(false); return; }
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-    if (data) setUser(data as UserProfile);
-    setLoading(false);
+    try {
+      if (!id) { 
+        setUser(null); 
+        setLoading(false); 
+        return; 
+      }
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (data) setUser(data as UserProfile);
+    } catch (err) {
+      console.error("Profile fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     let isMounted = true;
 
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (isMounted) {
-        if (session) {
-          await fetchProfile(session.user.id);
-        } else {
-          setLoading(false);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (isMounted) {
+          if (session) {
+            await fetchProfile(session.user.id);
+          } else {
+            setLoading(false);
+          }
         }
+      } catch (err) {
+        console.error("Auth init error:", err);
+        if (isMounted) setLoading(false);
       }
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-        await fetchProfile(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setLoading(false);
-      } else if (event === 'PASSWORD_RECOVERY') {
-        navigate('/reset-password');
+      try {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+          await fetchProfile(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setLoading(false);
+        } else if (event === 'PASSWORD_RECOVERY') {
+          navigate('/reset-password');
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err);
+        if (isMounted) setLoading(false);
       }
     });
+
+    // Safety timeout: If still loading after 10 seconds, force stop loading
+    const timeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 10000);
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(timeout);
     };
   }, [navigate]);
 
