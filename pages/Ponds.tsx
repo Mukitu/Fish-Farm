@@ -12,9 +12,18 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [saving, setSaving] = useState(false);
   
   const [newPond, setNewPond] = useState({ name: '', area: '', fish_type: '' });
-  const [stocking, setStocking] = useState({ species: '', count: '', total_weight: '' });
+  const [stocking, setStocking] = useState({ species: '', count: '', total_weight: '', avg_size_inch: '' });
+  const [availableGuides, setAvailableGuides] = useState<any[]>([]);
 
-  useEffect(() => { fetchPonds(); }, []);
+  useEffect(() => { 
+    fetchPonds(); 
+    fetchGuides();
+  }, []);
+
+  const fetchGuides = async () => {
+    const { data } = await supabase.from('farming_guides').select('species_name');
+    if (data) setAvailableGuides(data);
+  };
 
   const fetchPonds = async () => {
     setLoading(true);
@@ -68,20 +77,23 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleStocking = async () => {
-    if (!selectedPond) return;
+    if (!selectedPond || !stocking.species) return alert("মাছের জাত নির্বাচন করুন");
     setSaving(true);
     try {
+      const count = parseInt(stocking.count);
+      const weight = parseFloat(stocking.total_weight);
       const { error } = await supabase.from('stocking_records').insert([{
         user_id: user.id,
         pond_id: selectedPond.id,
-        species: stocking.species || selectedPond.fish_type,
-        count: parseInt(stocking.count),
-        total_weight_kg: parseFloat(stocking.total_weight),
-        avg_weight_gm: (parseFloat(stocking.total_weight) * 1000) / parseInt(stocking.count)
+        species: stocking.species,
+        count: count,
+        total_weight_kg: weight,
+        avg_weight_gm: (weight * 1000) / count,
+        avg_size_inch: parseFloat(stocking.avg_size_inch || '0')
       }]);
       if (error) throw error;
       setIsStockModalOpen(false);
-      setStocking({ species: '', count: '', total_weight: '' });
+      setStocking({ species: '', count: '', total_weight: '', avg_size_inch: '' });
       await fetchPonds();
       alert("✅ মাছের পোনা সফলভাবে মজুদ করা হয়েছে!");
     } catch (err: any) { alert(err.message); } finally { setSaving(false); }
@@ -149,12 +161,29 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
             <h3 className="text-2xl font-black text-center">মাছ পোনা মজুদ</h3>
             <div className="space-y-4">
-              <input type="number" placeholder="সংখ্যা (পিস)" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+              <select 
+                value={stocking.species} 
+                onChange={e => setStocking({...stocking, species: e.target.value})}
+                className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold"
+              >
+                <option value="">মাছের জাত নির্বাচন করুন</option>
+                {availableGuides.map(g => <option key={g.species_name} value={g.species_name}>{g.species_name}</option>)}
+                <option value="অন্যান্য">অন্যান্য</option>
+              </select>
+              {stocking.species === 'অন্যান্য' && (
+                <input type="text" placeholder="মাছের নাম লিখুন" onChange={e => setStocking({...stocking, species: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" placeholder="সংখ্যা (পিস)" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+                <input type="number" placeholder="সাইজ (ইঞ্চি)" value={stocking.avg_size_inch} onChange={e => setStocking({...stocking, avg_size_inch: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+              </div>
               <input type="number" placeholder="মোট ওজন (কেজি)" value={stocking.total_weight} onChange={e => setStocking({...stocking, total_weight: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
             </div>
             <div className="flex gap-4">
               <button onClick={() => setIsStockModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleStocking} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">মজুদ সম্পন্ন</button>
+              <button onClick={handleStocking} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">
+                {saving ? 'সেভ হচ্ছে...' : 'মজুদ সম্পন্ন'}
+              </button>
             </div>
           </div>
         </div>
