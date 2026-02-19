@@ -53,6 +53,11 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -70,7 +75,7 @@ const App: React.FC = () => {
         <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" />} />
-        <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
+        <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}>
           <Route index element={<DashboardSummary user={user!} />} />
           <Route path="ponds" element={<PondsPage user={user!} />} />
           <Route path="expenses" element={<ExpensesPage user={user!} />} />
@@ -85,7 +90,7 @@ const App: React.FC = () => {
           <Route path="advisory" element={<AdvisoryPage user={user!} />} />
           <Route path="settings" element={<AccountSettings user={user!} onUpdateUser={fetchProfile} />} />
         </Route>
-        <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/dashboard" />} />
+        <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" />} />
       </Routes>
     </Router>
   );
