@@ -153,7 +153,7 @@ const Landing: React.FC = () => {
                     <Link to="/founder" className="hover:text-white transition-colors">প্রতিষ্ঠাতা</Link>
                 </div>
                 <p className="text-xs text-slate-500 font-bold border-t border-white/5 pt-8">
-                    &copy; ২০২৪ মৎস্য খামার। মুুকিতুল ইসলাম নিশাত কর্তৃক প্রস্তুতকৃত ও সংরক্ষিত।
+                    &copy; ২০২৪ মৎস্য খামার। মুকিতু ইসলাম নিশাত কর্তৃক প্রস্তুতকৃত ও সংরক্ষিত।
                 </p>
             </div>
         </div>

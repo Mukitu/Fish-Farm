@@ -42,8 +42,8 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         user_id: user.id,
         pond_id: newSale.pond_id,
         item_name: newSale.item_name,
-        amount: parseFloat(newSale.amount),
-        weight: parseFloat(newSale.weight),
+        amount: parseFloat(newSale.amount) || 0,
+        weight_kg: parseFloat(newSale.weight) || 0,
         date: new Date().toISOString().split('T')[0]
       }]);
 
@@ -93,7 +93,7 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 <tr key={sale.id} className="hover:bg-slate-50 transition">
                   <td className="px-8 py-6 text-sm font-bold">{new Date(sale.date).toLocaleDateString('bn-BD')}</td>
                   <td className="px-8 py-6 font-black text-slate-800">{sale.ponds?.name || 'অজানা'}</td>
-                  <td className="px-8 py-6 text-center"><span className="font-black text-slate-600 bg-slate-50 px-3 py-1 rounded-xl">{sale.weight} কেজি</span></td>
+                  <td className="px-8 py-6 text-center"><span className="font-black text-slate-600 bg-slate-50 px-3 py-1 rounded-xl">{sale.weight_kg || 0} কেজি</span></td>
                   <td className="px-8 py-6 text-right font-black text-green-600">৳ {Number(sale.amount).toLocaleString()}</td>
                   <td className="px-8 py-6 text-center">
                     <button onClick={() => handleDelete(sale.id)} className="text-rose-300 hover:text-rose-600">🗑️</button>

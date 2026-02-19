@@ -64,6 +64,11 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       },
       water_volume: (area * 435.6 * depth).toLocaleString(),
       monthlySchedule,
+      disinfectants: [
+        { name: "Timsen (টিমসেন)", usage: "১ গ্রাম/শতাংশ", note: "সবচেয়ে জনপ্রিয় ও কার্যকর জীবাণুনাশক। এটি পানিতে দ্রুত মিশে যায় এবং ক্ষতিকর ব্যাকটেরিয়া ধ্বংস করে।" },
+        { name: "Virkon S (ভারকন এস)", usage: "২ গ্রাম/শতাংশ", note: "ভাইরাস ও ব্যাকটেরিয়া দমনে অত্যন্ত শক্তিশালী। আন্তর্জাতিকভাবে স্বীকৃত ও নিরাপদ।" },
+        { name: "BKC 80%", usage: "৫-১০ মিলি/শতাংশ", note: "পানির গুণমান রক্ষা ও জীবাণু দমনে কার্যকর। মাছের ক্ষত সারাতে সাহায্য করে।" }
+      ],
       tips: [
         months <= 4 ? "দ্রুত বর্ধনশীল জাত (পাঙ্গাস, তেলাপিয়া বা কার্প নার্সারি) এর জন্য উপযুক্ত।" : "কার্প জাতীয় বড় মাছ চাষের জন্য এই সময়কাল আদর্শ।",
         "পানির গভীরতা ৪-৫ ফুটের মধ্যে রাখা ভালো।",
@@ -86,6 +91,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         setPonds(pondData);
         const initialPond = pondData[0];
         setSelectedPond(initialPond);
+        setPlannerForm(prev => ({ ...prev, area: initialPond.area.toString() }));
         await fetchPondStockAndGuides(initialPond, guidesData || []);
       }
     } catch (e) {
@@ -157,6 +163,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     const p = ponds.find(x => x.id === id);
     if (p) {
       setSelectedPond(p);
+      setPlannerForm(prev => ({ ...prev, area: p.area.toString() }));
       fetchPondStockAndGuides(p, allGuides);
     }
   };
@@ -193,8 +200,8 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       {/* Header Section */}
       <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-8 shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full"></div>
-        <div className="relative z-10">
-          <h1 className="text-3xl font-black mb-2 tracking-tight flex items-center gap-3">
+        <div className="relative z-10 text-center md:text-left">
+          <h1 className="text-3xl font-black mb-2 tracking-tight flex items-center justify-center md:justify-start gap-3">
             <ShieldCheck className="text-blue-500 w-8 h-8" />
             স্মার্ট চাষ গাইড
           </h1>
@@ -211,369 +218,248 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         </div>
       </div>
       
-      {/* Growth Planner Section */}
-      <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden relative">
+      {/* Unified Smart Report Section */}
+      <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full"></div>
-        <div className="flex flex-col md:flex-row gap-10 items-start">
-          <div className="w-full md:w-1/3 space-y-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-black text-slate-800">দ্রুত চাষ পরিকল্পনা</h3>
-            </div>
-            <p className="text-sm font-bold text-slate-400 leading-relaxed">
-              আপনার পুকুরের আয়তন, পানির গভীরতা এবং কত মাসে মাছ বিক্রি করতে চান তা ইনপুট দিন। আমরা আপনাকে একটি আনুমানিক গাইড দেব।
-            </p>
-            
-            <div className="space-y-4 pt-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পুকুরের আয়তন (শতাংশ)</label>
-                <input 
-                  type="number" 
-                  value={plannerForm.area} 
-                  onChange={e => setPlannerForm({...plannerForm, area: e.target.value})}
-                  placeholder={selectedPond?.area || "আয়তন দিন"}
-                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পানির গড় গভীরতা (ফুট)</label>
-                <input 
-                  type="number" 
-                  value={plannerForm.depth} 
-                  onChange={e => setPlannerForm({...plannerForm, depth: e.target.value})}
-                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">বিক্রির টার্গেট (মাস)</label>
-                <select 
-                  value={plannerForm.months} 
-                  onChange={e => setPlannerForm({...plannerForm, months: e.target.value})}
-                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          {/* Left Column: Configuration & Stats */}
+          <div className="space-y-8">
+            <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
+              <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                <TrendingUp className="text-blue-600 w-5 h-5" />
+                চাষ পরিকল্পনা সেটআপ
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পুকুরের আয়তন (শতাংশ)</label>
+                  <input 
+                    type="number" 
+                    value={plannerForm.area} 
+                    onChange={e => setPlannerForm({...plannerForm, area: e.target.value})}
+                    placeholder={selectedPond?.area || "আয়তন দিন"}
+                    className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পানির গড় গভীরতা (ফুট)</label>
+                  <input 
+                    type="number" 
+                    value={plannerForm.depth} 
+                    onChange={e => setPlannerForm({...plannerForm, depth: e.target.value})}
+                    className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">বিক্রির টার্গেট (মাস)</label>
+                  <select 
+                    value={plannerForm.months} 
+                    onChange={e => setPlannerForm({...plannerForm, months: e.target.value})}
+                    className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                  >
+                    {[...Array(12)].map((_, i) => (
+                      <option key={i+1} value={i+1}>{i+1} মাস {i+1 <= 3 ? '(খুব দ্রুত)' : i+1 <= 6 ? '(স্বাভাবিক)' : '(দীর্ঘমেয়াদী)'}</option>
+                    ))}
+                  </select>
+                </div>
+                <button 
+                  onClick={calculatePlan}
+                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
                 >
-                  {[...Array(12)].map((_, i) => (
-                    <option key={i+1} value={i+1}>{i+1} মাস {i+1 <= 3 ? '(খুব দ্রুত)' : i+1 <= 6 ? '(স্বাভাবিক)' : '(দীর্ঘমেয়াদী)'}</option>
-                  ))}
-                </select>
+                  রিপোর্ট আপডেট করুন
+                </button>
               </div>
-              <button 
-                onClick={calculatePlan}
-                className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                পরিকল্পনা তৈরি করুন
-              </button>
+            </div>
+
+            <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-125 transition-transform">📊</div>
+              <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-blue-200">খামার ব্যবস্থাপনা</h3>
+              <p className="text-xs font-bold leading-relaxed opacity-90">
+                আপনার পুকুরে বর্তমানে {pondStock.length > 0 ? pondStock.length : '০'} টি প্রজাতির মাছ রয়েছে। তাদের গড় সাইজ অনুযায়ী নিচের পরামর্শগুলো অনুসরণ করুন।
+              </p>
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">পরামর্শ</p>
+                <p className="text-sm font-bold">গড় সাইজ: {pondStock.length > 0 ? (pondStock.reduce((a, b) => a + Number(b.avg_size_inch), 0) / pondStock.length).toFixed(1) : 0} ইঞ্চি</p>
+              </div>
             </div>
           </div>
 
-          <div className="w-full md:w-2/3 min-h-[400px] bg-slate-50 rounded-[3rem] p-8 border border-slate-100 relative">
-            {planResult ? (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          {/* Right Column: The Report */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Analysis Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">মোট আয়তন</p>
+                <p className="text-xl font-black text-slate-800">{selectedPond?.area} শতাংশ</p>
+              </div>
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">মোট পোনা</p>
+                <p className="text-xl font-black text-slate-800">
+                  {pondStock.reduce((a, b) => a + Number(b.count), 0).toLocaleString()} টি
+                </p>
+              </div>
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">টার্গেট ফলন</p>
+                <p className="text-xl font-black text-slate-800">
+                  {planResult?.expected_yield || Math.round(selectedPond?.area * 15)} কেজি
+                </p>
+              </div>
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">মজুদকৃত মাছ</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {pondStock.map((s, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-rose-100 text-rose-600 text-[8px] font-black rounded">
+                      {s.species}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline Selector */}
+            {timeline.length > 0 && (
+              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 overflow-x-auto no-scrollbar">
+                <div className="flex gap-3 min-w-max">
+                  {Array.from(new Set(timeline.map(t => t.month_number))).sort((a, b) => a - b).map((month) => (
+                    <button
+                      key={month}
+                      onClick={() => setActiveMonth(month)}
+                      className={`px-5 py-3 rounded-xl font-black text-xs transition-all flex flex-col items-center gap-1 ${
+                        activeMonth === month 
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-105' 
+                          : 'bg-white text-slate-400 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="text-[8px] opacity-70 uppercase">মাস</span>
+                      <span className="text-sm">{month}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Main Content Area */}
+            <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm min-h-[400px]">
+              {activeGuides.length > 0 ? (
+                <div className="space-y-8">
+                  <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-800">সম্মিলিত চাষ গাইড</h2>
+                      <p className="text-slate-400 font-bold text-sm">
+                        {activeGuides.map(g => g.species_name).join(', ')} এর জন্য সমন্বিত পরামর্শ
+                      </p>
+                    </div>
+                  </div>
+
+                  {currentTimelineItems.length > 0 ? (
+                    <div className="space-y-6">
+                      {currentTimelineItems.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6 last:border-0">
+                          <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                            <div className="flex items-center gap-2 mb-3 text-blue-600">
+                              <Droplets className="w-4 h-4" />
+                              <h4 className="text-[10px] font-black uppercase tracking-widest">
+                                {activeGuides.find(g => g.id === item.guide_id)?.species_name} - করণীয়
+                              </h4>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 mb-3">{item.task_title}</h3>
+                            <p className="text-slate-600 font-bold text-sm leading-relaxed">{item.task_description}</p>
+                          </div>
+
+                          <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
+                            <div className="flex items-center gap-2 mb-3 text-rose-600">
+                              <ShieldCheck className="w-4 h-4" />
+                              <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
+                            </div>
+                            <p className="text-rose-900 font-black text-base leading-relaxed">
+                              {item.medicine_suggestions || 'কোন নির্দিষ্ট ওষুধ প্রয়োজন নেই।'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+                        <div className="absolute -right-10 -bottom-10 opacity-10 text-[8rem] font-black">
+                          {activeMonth}
+                        </div>
+                        <div className="relative z-10">
+                          <h3 className="text-xl font-black mb-2">সমন্বিত মুনাফা টিপস</h3>
+                          <p className="text-blue-100 font-bold opacity-90 text-sm max-w-md">
+                            একাধিক প্রজাতির মাছ চাষে খাবারের অপচয় কম হয়। নিয়মিত পানির গুণমান বজায় রাখুন।
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-20">
+                      <p className="text-slate-400 font-bold">এই মাসের জন্য বা এই সাইজের মাছের জন্য কোন নির্দিষ্ট কাজ পাওয়া যায়নি।</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-20 text-center space-y-6">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-4xl grayscale opacity-50">🐟</div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800">সঠিক গাইড নির্বাচন করুন</h3>
+                    <p className="text-slate-400 font-bold text-sm max-w-xs mx-auto mt-2">আপনার পুকুরে কোন মাছ মজুদ করা হয়নি। নিচের তালিকা থেকে একটি গাইড বেছে নিন:</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+                     {allGuides.map((g) => (
+                       <button
+                         key={g.id}
+                         onClick={() => selectManualGuide(g)}
+                         className="p-4 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-2xl text-left transition-all group"
+                       >
+                          <p className="font-black text-slate-800 group-hover:text-blue-600 text-sm">{g.species_name}</p>
+                       </button>
+                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Planner Results (if active) */}
+            {planResult && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">চুন (Lime)</p>
                     <p className="text-2xl font-black text-slate-800">{planResult.lime.total} {planResult.lime.unit}</p>
                     <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.lime.note}</p>
                   </div>
-                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">লবণ (Salt)</p>
                     <p className="text-2xl font-black text-slate-800">{planResult.salt.total} {planResult.salt.unit}</p>
                     <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.salt.note}</p>
                   </div>
-                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">পটাশ (Potash)</p>
                     <p className="text-2xl font-black text-slate-800">{planResult.potash.total} {planResult.potash.unit}</p>
                     <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.potash.note}</p>
                   </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Droplets className="text-blue-600 w-4 h-4" />
-                    সার ও খাবার ব্যবস্থাপনা
+                {/* Disinfectants Section */}
+                <div className="bg-emerald-50 p-8 rounded-[2.5rem] border border-emerald-100">
+                  <h4 className="text-sm font-black text-emerald-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <ShieldCheck className="text-emerald-600 w-5 h-5" />
+                    সেরা জীবাণুনাশক পরামর্শ (Trusted)
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-slate-400">সাপ্তাহিক সার:</p>
-                      <div className="flex gap-4">
-                        <div className="px-4 py-2 bg-blue-50 rounded-xl text-blue-700 font-black text-sm">ইউরিয়া: {planResult.fertilizer.urea} গ্রাম</div>
-                        <div className="px-4 py-2 bg-blue-50 rounded-xl text-blue-700 font-black text-sm">টিএসপি: {planResult.fertilizer.tsp} গ্রাম</div>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-bold italic">{planResult.fertilizer.note}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-slate-400">মোট আনুমানিক খাবার:</p>
-                      <p className="text-2xl font-black text-slate-800">{planResult.feed_estimate.total} {planResult.feed_estimate.unit}</p>
-                      <p className="text-[10px] text-slate-400 font-bold italic">{planResult.feed_estimate.note}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-lg">
-                  <h4 className="text-sm font-black uppercase tracking-widest mb-4 opacity-80">বিশেষ পরামর্শ</h4>
-                  <ul className="space-y-3">
-                    {planResult.tips.map((tip: string, i: number) => (
-                      <li key={i} className="flex items-start gap-3 text-sm font-bold">
-                        <ChevronRight className="w-5 h-5 text-blue-300 shrink-0" />
-                        {tip}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
-                    <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">পানির মোট আয়তন</p>
-                    <p className="text-lg font-black">{planResult.water_volume} ঘনফুট</p>
-                  </div>
-                </div>
-
-                {/* Monthly Breakdown */}
-                <div className="mt-12 space-y-8">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                      <Calendar className="text-blue-600 w-8 h-8" />
-                      মাসিক কর্মপরিকল্পনা
-                    </h3>
-                    <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-2xl font-black text-xs">
-                      মোট সময়কাল: {plannerForm.months} মাস
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-6">
-                    {planResult.monthlySchedule.map((m: any) => (
-                      <div key={m.month} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-50 pb-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-100">
-                              {m.month}
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মাসিক লক্ষ্য</p>
-                              <h4 className="text-lg font-black text-slate-800">{m.task}</h4>
-                            </div>
-                          </div>
-                          {m.salt !== '0' && (
-                            <span className="px-4 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded-full border border-amber-100">
-                              লবণ প্রয়োগের মাস
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
-                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">চুন প্রয়োগ</p>
-                            <p className="text-lg font-black text-slate-800">{m.lime} <span className="text-xs">কেজি</span></p>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
-                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">খাবার (মাসিক)</p>
-                            <p className="text-lg font-black text-slate-800">{m.feed} <span className="text-xs">কেজি</span></p>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
-                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">সার (ইউরিয়া/টিএসপি)</p>
-                            <p className="text-lg font-black text-slate-800">{m.fertilizer.urea}/{m.fertilizer.tsp} <span className="text-xs">গ্রাম</span></p>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
-                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">ওষুধ/ব্যবস্থাপনা</p>
-                            <p className={`text-sm font-black ${m.medicine === 'প্রয়োজন নেই' ? 'text-slate-400' : 'text-rose-600'}`}>{m.medicine}</p>
-                          </div>
-                        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {planResult.disinfectants.map((d: any, i: number) => (
+                      <div key={i} className="bg-white p-5 rounded-3xl shadow-sm border border-emerald-50">
+                        <p className="font-black text-emerald-700 mb-1">{d.name}</p>
+                        <p className="text-xs font-black text-slate-800 mb-2">প্রয়োগ: {d.usage}</p>
+                        <p className="text-[10px] text-slate-400 font-bold leading-tight">{d.note}</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-10 space-y-4">
-                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-4xl shadow-sm">📋</div>
-                <h4 className="text-xl font-black text-slate-800">পরিকল্পনা দেখতে ডাটা ইনপুট দিন</h4>
-                <p className="text-sm font-bold text-slate-400 max-w-xs">
-                  বামে আপনার পুকুরের তথ্য দিয়ে "পরিকল্পনা তৈরি করুন" বাটনে ক্লিক করুন।
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Stats & Calculations */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-            <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-              <Info className="text-blue-600 w-5 h-5" />
-              পুকুর ও মজুদ বিশ্লেষণ
-            </h3>
-            <div className="space-y-4">
-              <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">মোট আয়তন</p>
-                <p className="text-2xl font-black text-slate-800">{selectedPond?.area} শতাংশ</p>
-              </div>
-              
-              <div className="p-5 bg-blue-50/50 rounded-3xl border border-blue-100">
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">মজুদকৃত মাছসমূহ</p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {pondStock.length > 0 ? (
-                    pondStock.map((s, i) => (
-                      <span key={i} className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg">
-                        {s.species} ({s.avg_size_inch}")
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm font-bold text-slate-400">কোন মাছ মজুদ নেই</p>
-                  )}
-                </div>
-              </div>
-              
-              {activeGuides.length > 0 && (
-                <div className="pt-4 mt-4 border-t border-slate-100 space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl">
-                    <div>
-                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">মোট পোনা</p>
-                      <p className="text-xl font-black text-emerald-800">
-                        {pondStock.reduce((a, b) => a + Number(b.count), 0).toLocaleString()} টি
-                      </p>
-                    </div>
-                    <TrendingUp className="text-emerald-500 w-8 h-8 opacity-40" />
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-amber-50 rounded-2xl">
-                    <div>
-                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">টার্গেট ফলন (গড়)</p>
-                      <p className="text-xl font-black text-amber-800">
-                        {Math.round(selectedPond?.area * (activeGuides.reduce((a, b) => a + Number(b.expected_yield_kg_per_decimal), 0) / activeGuides.length)).toLocaleString()} কেজি
-                      </p>
-                    </div>
-                    <TrendingUp className="text-amber-500 w-8 h-8 opacity-40" />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-slate-800 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-125 transition-transform">📊</div>
-            <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-slate-400">খামার ব্যবস্থাপনা</h3>
-            <p className="text-xs font-bold leading-relaxed opacity-90">
-              আপনার পুকুরে বর্তমানে {pondStock.length > 0 ? pondStock.length : '০'} টি প্রজাতির মাছ রয়েছে। তাদের গড় সাইজ অনুযায়ী নিচের পরামর্শগুলো অনুসরণ করুন।
-            </p>
-          </div>
-        </div>
-
-        {/* Right Column: Timeline & Content */}
-        <div className="lg:col-span-8 space-y-8">
-          {/* Timeline Selector */}
-          {timeline.length > 0 && (
-            <div className="bg-white p-6 rounded-[3rem] shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
-              <div className="flex gap-4 min-w-max">
-                {Array.from(new Set(timeline.map(t => t.month_number))).sort((a, b) => a - b).map((month) => (
-                  <button
-                    key={month}
-                    onClick={() => setActiveMonth(month)}
-                    className={`px-6 py-4 rounded-2xl font-black text-sm transition-all flex flex-col items-center gap-1 ${
-                      activeMonth === month 
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-105' 
-                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className="text-[10px] opacity-70 uppercase">মাস</span>
-                    <span className="text-lg">{month}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Main Content Area */}
-          <div className="bg-white p-10 md:p-14 rounded-[4rem] shadow-sm border border-slate-100 min-h-[500px] relative overflow-hidden">
-            {activeGuides.length > 0 ? (
-              <div className="space-y-10">
-                <div className="flex items-center gap-4 border-b border-slate-50 pb-8">
-                  <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white text-3xl shadow-xl">
-                    <Calendar className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-slate-800">সম্মিলিত চাষ গাইড</h2>
-                    <p className="text-slate-400 font-bold">
-                      {activeGuides.map(g => g.species_name).join(', ')} এর জন্য সমন্বিত পরামর্শ
-                    </p>
-                  </div>
-                </div>
-
-                {currentTimelineItems.length > 0 ? (
-                  <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                    {currentTimelineItems.map((item, idx) => (
-                      <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-slate-50 pb-8 last:border-0">
-                        <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
-                          <div className="flex items-center gap-2 mb-4 text-blue-600">
-                            <Droplets className="w-5 h-5" />
-                            <h4 className="text-sm font-black uppercase tracking-widest">
-                              {activeGuides.find(g => g.id === item.guide_id)?.species_name} - করণীয়
-                            </h4>
-                          </div>
-                          <h3 className="text-2xl font-black text-slate-800 mb-4">{item.task_title}</h3>
-                          <p className="text-slate-600 font-bold leading-relaxed">{item.task_description}</p>
-                          {item.min_size_inch > 0 && (
-                            <p className="mt-4 text-[10px] font-black text-blue-500 uppercase">উপযুক্ত সাইজ: {item.min_size_inch} - {item.max_size_inch} ইঞ্চি</p>
-                          )}
-                        </div>
-
-                        <div className="bg-rose-50 p-8 rounded-[2.5rem] border border-rose-100">
-                          <div className="flex items-center gap-2 mb-4 text-rose-600">
-                            <ShieldCheck className="w-5 h-5" />
-                            <h4 className="text-sm font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
-                          </div>
-                          <p className="text-rose-900 font-black text-lg leading-relaxed">
-                            {item.medicine_suggestions || 'কোন নির্দিষ্ট ওষুধ প্রয়োজন নেই।'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="bg-blue-600 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-                      <div className="absolute -right-10 -bottom-10 opacity-10 text-[10rem] font-black">
-                        {activeMonth}
-                      </div>
-                      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div>
-                          <h3 className="text-2xl font-black mb-2">সমন্বিত মুনাফা টিপস</h3>
-                          <p className="text-blue-100 font-bold opacity-90 max-w-md">
-                            একাধিক প্রজাতির মাছ চাষে খাবারের অপচয় কম হয়। নিয়মিত পানির গুণমান বজায় রাখুন।
-                          </p>
-                        </div>
-                        <div className="px-6 py-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                           <p className="text-xs font-black uppercase">পরামর্শ</p>
-                           <p className="text-sm font-bold">গড় সাইজ: {pondStock.length > 0 ? (pondStock.reduce((a, b) => a + Number(b.avg_size_inch), 0) / pondStock.length).toFixed(1) : 0} ইঞ্চি</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-20">
-                    <p className="text-slate-400 font-bold">এই মাসের জন্য বা এই সাইজের মাছের জন্য কোন নির্দিষ্ট কাজ পাওয়া যায়নি।</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full py-20 text-center space-y-8">
-                <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-5xl grayscale opacity-50">🐟</div>
-                <div>
-                  <h3 className="text-2xl font-black text-slate-800">সঠিক গাইড নির্বাচন করুন</h3>
-                  <p className="text-slate-400 font-bold max-w-xs mx-auto mt-2">আপনার পুকুরে কোন মাছ মজুদ করা হয়নি অথবা মজুদকৃত মাছের সাথে আমাদের ডাটাবেসের মিল পাওয়া যায়নি। নিচের তালিকা থেকে একটি গাইড বেছে নিন:</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
-                   {allGuides.map((g) => (
-                     <button
-                       key={g.id}
-                       onClick={() => selectManualGuide(g)}
-                       className="p-6 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-3xl text-left transition-all group"
-                     >
-                        <p className="font-black text-slate-800 group-hover:text-blue-600 mb-1">{g.species_name}</p>
-                        <p className="text-xs text-slate-400 font-bold line-clamp-1">{g.description}</p>
-                     </button>
-                   ))}
-                </div>
-                
-                <div className="pt-8 border-t border-slate-50 w-full">
-                   <p className="text-xs text-slate-400 italic">পরামর্শ: পুকুর সেকশনে গিয়ে মাছের পোনা মজুদ করুন।</p>
+                  <p className="mt-4 text-[10px] text-emerald-600 font-bold italic text-center">
+                    * তথ্যসূত্র: বাংলাদেশ মৎস্য গবেষণা ইনস্টিটিউট (BFRI) ও অনুমোদিত ডিলার।
+                  </p>
                 </div>
               </div>
             )}

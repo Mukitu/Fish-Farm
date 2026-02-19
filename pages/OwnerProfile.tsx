@@ -12,12 +12,12 @@ const OwnerProfile: React.FC = () => {
         <div className="relative inline-block mb-10">
           <div className="absolute inset-0 bg-blue-600 rounded-[3rem] rotate-6 -z-10 opacity-10"></div>
           <img 
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=Nishat&backgroundColor=b6e3f4" 
+            src="https://i.ibb.co/Xf8zK4v/nishat.jpg" 
             alt="Owner" 
             className="w-48 h-48 md:w-64 md:h-64 rounded-[3rem] border-8 border-white shadow-2xl object-cover"
           />
         </div>
-        <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-4">মুকিতুল ইসলাম নিশাত</h1>
+        <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-4">মুকিতু ইসলাম নিশাত</h1>
         <p className="text-xl md:text-2xl text-blue-600 font-black mb-12 italic">প্রতিষ্ঠাতা ও প্রধান নির্বাহী, মৎস্য খামার</p>
         
         <div className="bg-slate-50 p-10 md:p-16 rounded-[4rem] text-left shadow-inner border border-slate-100">
