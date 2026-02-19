@@ -13,6 +13,45 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [timeline, setTimeline] = useState<any[]>([]);
   const [activeMonth, setActiveMonth] = useState<number>(1);
   const [loading, setLoading] = useState(true);
+  const [plannerForm, setPlannerForm] = useState({ area: user.max_ponds > 0 ? '' : '0', depth: '4', months: '4' });
+  const [planResult, setPlanResult] = useState<any | null>(null);
+
+  const calculatePlan = () => {
+    const area = parseFloat(plannerForm.area || selectedPond?.area || '0');
+    const depth = parseFloat(plannerForm.depth || '4');
+    const months = parseInt(plannerForm.months || '4');
+
+    if (area <= 0) return alert('পুকুরের আয়তন দিন');
+
+    // Logic for calculations (Approximate standard values for BD fish farming)
+    // Intensity factor based on months (shorter time = more intensive)
+    const intensity = months <= 3 ? 1.5 : months <= 4 ? 1.2 : 1.0;
+
+    const results = {
+      lime: { total: area * 1.5, unit: 'কেজি', note: 'প্রস্তুতির সময় ১ কেজি, পরে প্রতি মাসে ২৫০ গ্রাম' },
+      salt: { total: area * 1, unit: 'কেজি', note: 'পানির বিষাক্ততা কমাতে ও রোগ প্রতিরোধে' },
+      potash: { total: area * 10, unit: 'গ্রাম', note: 'জীবাণুনাশক হিসেবে ব্যবহার করুন' },
+      fertilizer: { 
+        urea: area * 100 * intensity, 
+        tsp: area * 50 * intensity, 
+        unit: 'গ্রাম', 
+        note: 'প্রাকৃতিক খাবার তৈরির জন্য প্রতি সপ্তাহে' 
+      },
+      feed_estimate: { 
+        total: area * 40 * intensity * (months / 4), 
+        unit: 'কেজি', 
+        note: `পুরো ${months} মাসের আনুমানিক খাবার (মাছের ঘনত্ব অনুযায়ী কম-বেশি হতে পারে)` 
+      },
+      water_volume: (area * 435.6 * depth).toLocaleString(),
+      tips: [
+        months <= 3 ? "দ্রুত বর্ধনশীল জাত (যেমন: পাঙ্গাস, তেলাপিয়া) নির্বাচন করুন।" : "কার্প জাতীয় মাছের জন্য এই সময়কাল আদর্শ।",
+        "পানির গভীরতা ৪-৫ ফুটের মধ্যে রাখা ভালো।",
+        "প্রতি ১৫ দিন অন্তর পানির পিএইচ (pH) পরীক্ষা করুন।"
+      ]
+    };
+
+    setPlanResult(results);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -148,6 +187,135 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           >
             {ponds.map(p => <option key={p.id} value={p.id} className="text-slate-800">{p.name} ({p.area} শতাংশ)</option>)}
           </select>
+        </div>
+      </div>
+      
+      {/* Growth Planner Section */}
+      <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full"></div>
+        <div className="flex flex-col md:flex-row gap-10 items-start">
+          <div className="w-full md:w-1/3 space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800">দ্রুত চাষ পরিকল্পনা</h3>
+            </div>
+            <p className="text-sm font-bold text-slate-400 leading-relaxed">
+              আপনার পুকুরের আয়তন, পানির গভীরতা এবং কত মাসে মাছ বিক্রি করতে চান তা ইনপুট দিন। আমরা আপনাকে একটি আনুমানিক গাইড দেব।
+            </p>
+            
+            <div className="space-y-4 pt-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পুকুরের আয়তন (শতাংশ)</label>
+                <input 
+                  type="number" 
+                  value={plannerForm.area} 
+                  onChange={e => setPlannerForm({...plannerForm, area: e.target.value})}
+                  placeholder={selectedPond?.area || "আয়তন দিন"}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">পানির গড় গভীরতা (ফুট)</label>
+                <input 
+                  type="number" 
+                  value={plannerForm.depth} 
+                  onChange={e => setPlannerForm({...plannerForm, depth: e.target.value})}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">বিক্রির টার্গেট (মাস)</label>
+                <select 
+                  value={plannerForm.months} 
+                  onChange={e => setPlannerForm({...plannerForm, months: e.target.value})}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
+                >
+                  <option value="3">৩ মাস (খুব দ্রুত)</option>
+                  <option value="4">৪ মাস (দ্রুত)</option>
+                  <option value="5">৫ মাস (মাঝারি)</option>
+                  <option value="6">৬ মাস (স্বাভাবিক)</option>
+                </select>
+              </div>
+              <button 
+                onClick={calculatePlan}
+                className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                পরিকল্পনা তৈরি করুন
+              </button>
+            </div>
+          </div>
+
+          <div className="w-full md:w-2/3 min-h-[400px] bg-slate-50 rounded-[3rem] p-8 border border-slate-100 relative">
+            {planResult ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">চুন (Lime)</p>
+                    <p className="text-2xl font-black text-slate-800">{planResult.lime.total} {planResult.lime.unit}</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.lime.note}</p>
+                  </div>
+                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">লবণ (Salt)</p>
+                    <p className="text-2xl font-black text-slate-800">{planResult.salt.total} {planResult.salt.unit}</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.salt.note}</p>
+                  </div>
+                  <div className="flex-1 min-w-[150px] bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">পটাশ (Potash)</p>
+                    <p className="text-2xl font-black text-slate-800">{planResult.potash.total} {planResult.potash.unit}</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">{planResult.potash.note}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Droplets className="text-blue-600 w-4 h-4" />
+                    সার ও খাবার ব্যবস্থাপনা
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-400">সাপ্তাহিক সার:</p>
+                      <div className="flex gap-4">
+                        <div className="px-4 py-2 bg-blue-50 rounded-xl text-blue-700 font-black text-sm">ইউরিয়া: {planResult.fertilizer.urea} গ্রাম</div>
+                        <div className="px-4 py-2 bg-blue-50 rounded-xl text-blue-700 font-black text-sm">টিএসপি: {planResult.fertilizer.tsp} গ্রাম</div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold italic">{planResult.fertilizer.note}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-400">মোট আনুমানিক খাবার:</p>
+                      <p className="text-2xl font-black text-slate-800">{planResult.feed_estimate.total} {planResult.feed_estimate.unit}</p>
+                      <p className="text-[10px] text-slate-400 font-bold italic">{planResult.feed_estimate.note}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-lg">
+                  <h4 className="text-sm font-black uppercase tracking-widest mb-4 opacity-80">বিশেষ পরামর্শ</h4>
+                  <ul className="space-y-3">
+                    {planResult.tips.map((tip: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3 text-sm font-bold">
+                        <ChevronRight className="w-5 h-5 text-blue-300 shrink-0" />
+                        {tip}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+                    <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">পানির মোট আয়তন</p>
+                    <p className="text-lg font-black">{planResult.water_volume} ঘনফুট</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-10 space-y-4">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-4xl shadow-sm">📋</div>
+                <h4 className="text-xl font-black text-slate-800">পরিকল্পনা দেখতে ডাটা ইনপুট দিন</h4>
+                <p className="text-sm font-bold text-slate-400 max-w-xs">
+                  বামে আপনার পুকুরের তথ্য দিয়ে "পরিকল্পনা তৈরি করুন" বাটনে ক্লিক করুন।
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
