@@ -22,22 +22,10 @@ import ResetPasswordPage from './pages/ResetPassword';
 import AccountSettings from './pages/AccountSettings';
 import { UserProfile, SubscriptionStatus, UserRole, Pond } from './types';
 
-const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
-  const navigate = useNavigate();
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY') navigate('/reset-password');
-      else if (session) onProfileFetch(session.user.id);
-      else onProfileFetch("");
-    });
-    return () => subscription.unsubscribe();
-  }, [navigate, onProfileFetch]);
-  return null;
-};
-
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   const fetchProfile = async (id: string) => {
     if (!id) { setUser(null); setLoading(false); return; }
@@ -47,15 +35,42 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) fetchProfile(session.user.id);
-      else setLoading(false);
+    let isMounted = true;
+
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (isMounted) {
+        if (session) {
+          await fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      }
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        await fetchProfile(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setLoading(false);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      }
     });
-  }, []);
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    navigate('/');
   };
 
   if (loading) return (
@@ -66,10 +81,8 @@ const App: React.FC = () => {
   );
 
   return (
-    <Router>
-      <AuthListener onProfileFetch={fetchProfile} />
-      <Routes>
-        <Route path="/" element={<Landing />} />
+    <Routes>
+      <Route path="/" element={<Landing />} />
         <Route path="/founder" element={<OwnerProfile />} />
         <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} />} />
         <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} />} />
@@ -92,7 +105,6 @@ const App: React.FC = () => {
         </Route>
         <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" />} />
       </Routes>
-    </Router>
   );
 };
 
@@ -202,4 +214,10 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   );
 };
 
-export default App;
+const AppWrapper: React.FC = () => (
+  <Router>
+    <App />
+  </Router>
+);
+
+export default AppWrapper;
