@@ -24,29 +24,50 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     if (area <= 0) return alert('পুকুরের আয়তন দিন');
 
     // Logic for calculations (Approximate standard values for BD fish farming)
-    // Intensity factor based on months (shorter time = more intensive)
     const intensity = months <= 3 ? 1.5 : months <= 4 ? 1.2 : 1.0;
+    
+    const monthlySchedule = [];
+    let totalFeed = 0;
+    
+    for (let i = 1; i <= months; i++) {
+      const monthlyFeed = area * (8 + (i * 3)) * intensity; // Feed increases as fish grow
+      totalFeed += monthlyFeed;
+      
+      monthlySchedule.push({
+        month: i,
+        lime: i === 1 ? (area * 1).toFixed(1) : (area * 0.2).toFixed(1),
+        salt: i === 1 ? (area * 0.5).toFixed(1) : (i % 3 === 0 ? (area * 0.2).toFixed(1) : '0'),
+        fertilizer: {
+          urea: Math.round(area * 100 * intensity),
+          tsp: Math.round(area * 50 * intensity)
+        },
+        feed: Math.round(monthlyFeed),
+        task: i === 1 ? "পুকুর প্রস্তুতি, চুন ও সার প্রয়োগ" : (i === months ? "মাছ আহরণ ও বাজারজাতকরণ" : "নিয়মিত পরিচর্যা ও নমুনা সংগ্রহ"),
+        medicine: i % 2 === 0 ? "পটাশ বা জীবাণুনাশক (১০ গ্রাম/শতাংশ)" : "প্রয়োজন নেই"
+      });
+    }
 
     const results = {
-      lime: { total: area * 1.5, unit: 'কেজি', note: 'প্রস্তুতির সময় ১ কেজি, পরে প্রতি মাসে ২৫০ গ্রাম' },
-      salt: { total: area * 1, unit: 'কেজি', note: 'পানির বিষাক্ততা কমাতে ও রোগ প্রতিরোধে' },
-      potash: { total: area * 10, unit: 'গ্রাম', note: 'জীবাণুনাশক হিসেবে ব্যবহার করুন' },
+      lime: { total: (area * 1 + (months - 1) * area * 0.2).toFixed(1), unit: 'কেজি', note: 'পুরো সিজনের মোট চুন' },
+      salt: { total: (area * 0.5 + Math.floor(months/3) * area * 0.2).toFixed(1), unit: 'কেজি', note: 'রোগ প্রতিরোধে মোট লবণ' },
+      potash: { total: Math.round(area * 10 * Math.floor(months/2)), unit: 'গ্রাম', note: 'মোট পটাশ/জীবাণুনাশক' },
       fertilizer: { 
-        urea: area * 100 * intensity, 
-        tsp: area * 50 * intensity, 
+        urea: Math.round(area * 100 * intensity), 
+        tsp: Math.round(area * 50 * intensity), 
         unit: 'গ্রাম', 
-        note: 'প্রাকৃতিক খাবার তৈরির জন্য প্রতি সপ্তাহে' 
+        note: 'প্রতি সপ্তাহের জন্য সার' 
       },
       feed_estimate: { 
-        total: area * 40 * intensity * (months / 4), 
+        total: Math.round(totalFeed), 
         unit: 'কেজি', 
-        note: `পুরো ${months} মাসের আনুমানিক খাবার (মাছের ঘনত্ব অনুযায়ী কম-বেশি হতে পারে)` 
+        note: `পুরো ${months} মাসের আনুমানিক মোট খাবার` 
       },
       water_volume: (area * 435.6 * depth).toLocaleString(),
+      monthlySchedule,
       tips: [
-        months <= 3 ? "দ্রুত বর্ধনশীল জাত (যেমন: পাঙ্গাস, তেলাপিয়া) নির্বাচন করুন।" : "কার্প জাতীয় মাছের জন্য এই সময়কাল আদর্শ।",
+        months <= 4 ? "দ্রুত বর্ধনশীল জাত (পাঙ্গাস, তেলাপিয়া বা কার্প নার্সারি) এর জন্য উপযুক্ত।" : "কার্প জাতীয় বড় মাছ চাষের জন্য এই সময়কাল আদর্শ।",
         "পানির গভীরতা ৪-৫ ফুটের মধ্যে রাখা ভালো।",
-        "প্রতি ১৫ দিন অন্তর পানির পিএইচ (pH) পরীক্ষা করুন।"
+        "প্রতি ১৫ দিন অন্তর মাছের বৃদ্ধি পর্যবেক্ষণ করুন।"
       ]
     };
 
@@ -232,10 +253,9 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   onChange={e => setPlannerForm({...plannerForm, months: e.target.value})}
                   className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
                 >
-                  <option value="3">৩ মাস (খুব দ্রুত)</option>
-                  <option value="4">৪ মাস (দ্রুত)</option>
-                  <option value="5">৫ মাস (মাঝারি)</option>
-                  <option value="6">৬ মাস (স্বাভাবিক)</option>
+                  {[...Array(12)].map((_, i) => (
+                    <option key={i+1} value={i+1}>{i+1} মাস {i+1 <= 3 ? '(খুব দ্রুত)' : i+1 <= 6 ? '(স্বাভাবিক)' : '(দীর্ঘমেয়াদী)'}</option>
+                  ))}
                 </select>
               </div>
               <button 
@@ -303,6 +323,61 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">পানির মোট আয়তন</p>
                     <p className="text-lg font-black">{planResult.water_volume} ঘনফুট</p>
+                  </div>
+                </div>
+
+                {/* Monthly Breakdown */}
+                <div className="mt-12 space-y-8">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                      <Calendar className="text-blue-600 w-8 h-8" />
+                      মাসিক কর্মপরিকল্পনা
+                    </h3>
+                    <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-2xl font-black text-xs">
+                      মোট সময়কাল: {plannerForm.months} মাস
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-6">
+                    {planResult.monthlySchedule.map((m: any) => (
+                      <div key={m.month} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-50 pb-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-100">
+                              {m.month}
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মাসিক লক্ষ্য</p>
+                              <h4 className="text-lg font-black text-slate-800">{m.task}</h4>
+                            </div>
+                          </div>
+                          {m.salt !== '0' && (
+                            <span className="px-4 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded-full border border-amber-100">
+                              লবণ প্রয়োগের মাস
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
+                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">চুন প্রয়োগ</p>
+                            <p className="text-lg font-black text-slate-800">{m.lime} <span className="text-xs">কেজি</span></p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
+                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">খাবার (মাসিক)</p>
+                            <p className="text-lg font-black text-slate-800">{m.feed} <span className="text-xs">কেজি</span></p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
+                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">সার (ইউরিয়া/টিএসপি)</p>
+                            <p className="text-lg font-black text-slate-800">{m.fertilizer.urea}/{m.fertilizer.tsp} <span className="text-xs">গ্রাম</span></p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-50/50 transition-colors">
+                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">ওষুধ/ব্যবস্থাপনা</p>
+                            <p className={`text-sm font-black ${m.medicine === 'প্রয়োজন নেই' ? 'text-slate-400' : 'text-rose-600'}`}>{m.medicine}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
