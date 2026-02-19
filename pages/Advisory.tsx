@@ -2,29 +2,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
-import { GoogleGenAI } from "@google/genai";
-import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck, Search } from 'lucide-react';
+import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck } from 'lucide-react';
 
 const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
+  const [allGuides, setAllGuides] = useState<any[]>([]);
   const [selectedPond, setSelectedPond] = useState<any | null>(null);
   const [guide, setGuide] = useState<any | null>(null);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [activeMonth, setActiveMonth] = useState<number>(1);
-  const [advice, setAdvice] = useState<string>('');
-  const [sources, setSources] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: pondData } = await supabase.from('ponds').select('*').eq('user_id', user.id);
+      const { data: guidesData } = await supabase.from('farming_guides').select('*');
+      
+      if (guidesData) setAllGuides(guidesData);
+
       if (pondData && pondData.length > 0) {
         setPonds(pondData);
         const initialPond = pondData[0];
         setSelectedPond(initialPond);
-        await fetchGuideData(initialPond);
+        await fetchGuideData(initialPond, guidesData || []);
       }
     } catch (e) {
       console.error("Fetch Data Error:", e);
@@ -33,21 +34,19 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   }, [user.id]);
 
-  const fetchGuideData = async (pond: any) => {
+  const fetchGuideData = async (pond: any, guides: any[]) => {
     try {
-      // Try to find a matching guide in the database
-      const { data: guideData } = await supabase
-        .from('farming_guides')
-        .select('*')
-        .ilike('species_name', `%${pond.fish_type}%`)
-        .maybeSingle();
+      const matchedGuide = guides.find(g => 
+        g.species_name.toLowerCase().includes(pond.fish_type.toLowerCase()) ||
+        (g.keywords && g.keywords.toLowerCase().includes(pond.fish_type.toLowerCase()))
+      );
 
-      if (guideData) {
-        setGuide(guideData);
+      if (matchedGuide) {
+        setGuide(matchedGuide);
         const { data: timelineData } = await supabase
           .from('farming_timeline')
           .select('*')
-          .eq('guide_id', guideData.id)
+          .eq('guide_id', matchedGuide.id)
           .order('month_number', { ascending: true });
         
         setTimeline(timelineData || []);
@@ -61,65 +60,27 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
+  const selectManualGuide = async (g: any) => {
+    setGuide(g);
+    const { data: timelineData } = await supabase
+      .from('farming_timeline')
+      .select('*')
+      .eq('guide_id', g.id)
+      .order('month_number', { ascending: true });
+    
+    setTimeline(timelineData || []);
+    setActiveMonth(1);
+  };
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const getAIAdvice = async (pond: any) => {
-    setAnalyzing(true);
-    setAdvice('');
-    setSources([]);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const prompt = `
-        You are a Senior Fisheries Expert in Bangladesh. Generate a professional, highly structured aquaculture farming guide in Bengali for a pond with these details:
-        
-        Pond Specs:
-        - Name: ${pond.name}
-        - Total Area: ${pond.area} decimals (শতাংশ)
-        - Fish Type: ${pond.fish_type}
-
-        Please provide EXACT data and numbers for the following sections:
-        1. **মজুদ ঘনত্ব ও টার্গেট**: ${pond.area} শতাংশের জন্য কত পিস পোনা (specific count) ছাড়তে হবে এবং ৬ মাস পর কত কেজি মাছ পাওয়ার লক্ষ্যমাত্রা (Target Yield in Kg) থাকা উচিত।
-        2. **পুকুর প্রস্তুতি ও চুন-লবণ**: পুকুর প্রস্তুত করতে কত কেজি চুন এবং কত কেজি লবণ লাগবে? চাষ চলাকালীন ১৫ দিন বা ১ মাস অন্তর কতটুকু চুন-লবণ দিতে হবে? (Calculate based on ${pond.area} decimals).
-        3. **খাদ্য ব্যবস্থাপনা**: মাছের ওজন অনুযায়ী দৈনিক কত শতাংশ হারে খাবার দিতে হবে? (Feed ratio logic).
-        4. **প্রয়োজনীয় ওষুধ (Medicine List)**: এই জাতের মাছের রোগের জন্য বাজারে পাওয়া যায় এমন ৩-৪টি নির্দিষ্ট ওষুধের নাম (যেমন: BKC, Zeolite, Gas Trap বা Potash) এবং তাদের প্রয়োগ মাত্রা লিখুন।
-        5. **চাষের গোপন টিপস**: খরচ কমিয়ে লাভ বাড়ানোর ২-৩টি কার্যকরী পরামর্শ।
-
-        Instructions:
-        - Use Markdown for bold titles.
-        - Be very specific with numbers (Kg/Decimal).
-        - Base data on BFRI (Bangladesh Fisheries Research Institute) standards.
-        - Ensure output is in clear Bengali.
-      `;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      setAdvice(response.text || 'তথ্য সংগ্রহ করা সম্ভব হয়নি।');
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (groundingChunks) setSources(groundingChunks);
-
-    } catch (e: any) {
-      console.error("AI Error:", e);
-      setAdvice('দুঃখিত, এআই সার্ভার থেকে ডাটা লোড করা যাচ্ছে না। দয়া করে আপনার API Key চেক করুন বা কিছুক্ষণ পর চেষ্টা করুন।');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
 
   const handlePondChange = (id: string) => {
     const p = ponds.find(x => x.id === id);
     if (p) {
       setSelectedPond(p);
-      fetchGuideData(p);
-      setAdvice(''); // Clear AI advice when changing pond
+      fetchGuideData(p, allGuides);
     }
   };
 
@@ -191,25 +152,26 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                     </div>
                     <TrendingUp className="text-amber-500 w-8 h-8 opacity-40" />
                   </div>
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-2xl">
+                    <div>
+                      <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">খাদ্য অনুপাত</p>
+                      <p className="text-xl font-black text-blue-800">
+                        {guide.feed_ratio_percentage}% (দৈনিক)
+                      </p>
+                    </div>
+                    <Droplets className="text-blue-500 w-8 h-8 opacity-40" />
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-125 transition-transform">💡</div>
-            <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-indigo-200">বিশেষ দ্রষ্টব্য</h3>
+          <div className="bg-slate-800 p-8 rounded-[3rem] text-white shadow-xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-125 transition-transform">📊</div>
+            <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-slate-400">খামার ব্যবস্থাপনা</h3>
             <p className="text-xs font-bold leading-relaxed opacity-90">
-              চুন ও লবণ ব্যবহারের ক্ষেত্রে পানির pH এবং স্বচ্ছতা পরীক্ষা করে নেওয়া সবচেয়ে ভালো। এই গাইডটি BFRI এর আদর্শ মান অনুসরণ করে তৈরি।
+              সঠিক ডাটা এন্ট্রি এবং নিয়মিত পর্যবেক্ষণ আপনার খামারের লাভ নিশ্চিত করবে। নিচের টাইমলাইনটি অনুসরণ করুন।
             </p>
-            <button 
-              onClick={() => getAIAdvice(selectedPond)}
-              disabled={analyzing}
-              className="mt-6 w-full py-4 bg-white text-indigo-600 rounded-2xl font-black text-sm hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
-            >
-              {analyzing ? 'অ্যানালাইসিস হচ্ছে...' : 'অ্যাডভান্সড এআই পরামর্শ'}
-              <Search className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -239,40 +201,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
           {/* Main Content Area */}
           <div className="bg-white p-10 md:p-14 rounded-[4rem] shadow-sm border border-slate-100 min-h-[500px] relative overflow-hidden">
-            {analyzing ? (
-              <div className="flex flex-col items-center justify-center h-full py-20 space-y-6">
-                <div className="w-20 h-20 border-8 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-center">
-                  <p className="text-xl font-black text-slate-800 animate-pulse">নির্ভরযোগ্য ডাটা প্রসেস হচ্ছে...</p>
-                  <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">গুগল সার্চ ও মৎস্য বিজ্ঞানীদের ডাটা যাচাই করা হচ্ছে</p>
-                </div>
-              </div>
-            ) : advice ? (
-              <div className="prose prose-blue max-w-none">
-                <div className="flex items-center gap-3 mb-10 pb-6 border-b border-slate-50">
-                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg">🤖</div>
-                  <div>
-                    <h2 className="text-xl font-black text-slate-800">অ্যাডভান্সড এআই রিপোর্ট</h2>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated for {selectedPond?.area} decimals</p>
-                  </div>
-                </div>
-                <div className="text-slate-700 leading-relaxed text-lg font-medium whitespace-pre-wrap advisory-content">
-                  {advice}
-                </div>
-                {sources.length > 0 && (
-                  <div className="mt-16 pt-8 border-t border-slate-100">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">তথ্যসূত্র (Trusted Links):</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {sources.map((src, i) => (
-                        <a key={i} href={src.web?.uri} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl text-[10px] font-black border border-slate-100 transition-all flex items-center gap-1">
-                          🌐 {src.web?.title || 'রিসোর্স'}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : guide ? (
+            {guide ? (
               <div className="space-y-10">
                 <div className="flex items-center gap-4 border-b border-slate-50 pb-8">
                   <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center text-white text-3xl shadow-xl">
@@ -318,27 +247,39 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                             সঠিক সময়ে খাবার এবং পানির মান নিয়ন্ত্রণ করলে আপনার মুনাফা ৫০% পর্যন্ত বৃদ্ধি পেতে পারে।
                           </p>
                         </div>
-                        <button className="px-8 py-4 bg-white text-blue-600 rounded-2xl font-black text-sm hover:scale-105 transition-transform shadow-xl">
-                          বিস্তারিত জানুন
-                        </button>
+                        <div className="px-6 py-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                           <p className="text-xs font-black uppercase">পরামর্শ</p>
+                           <p className="text-sm font-bold">নিয়মিত পানির pH চেক করুন</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full py-20 text-center space-y-6">
+              <div className="flex flex-col items-center justify-center h-full py-20 text-center space-y-8">
                 <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-5xl grayscale opacity-50">🐟</div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-800">কোন গাইড পাওয়া যায়নি</h3>
-                  <p className="text-slate-400 font-bold max-w-xs mx-auto mt-2">আপনার পুকুরের মাছের জাতের জন্য আমাদের ডাটাবেসে কোন গাইড নেই। এআই পরামর্শ নিতে পারেন।</p>
+                  <h3 className="text-2xl font-black text-slate-800">সঠিক গাইড নির্বাচন করুন</h3>
+                  <p className="text-slate-400 font-bold max-w-xs mx-auto mt-2">আপনার পুকুরের মাছের জাতের সাথে আমাদের ডাটাবেসের মিল পাওয়া যায়নি। নিচের তালিকা থেকে একটি গাইড বেছে নিন:</p>
                 </div>
-                <button 
-                  onClick={() => getAIAdvice(selectedPond)}
-                  className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-blue-700 transition-all"
-                >
-                  এআই পরামর্শ নিন
-                </button>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+                   {allGuides.map((g) => (
+                     <button
+                       key={g.id}
+                       onClick={() => selectManualGuide(g)}
+                       className="p-6 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-3xl text-left transition-all group"
+                     >
+                        <p className="font-black text-slate-800 group-hover:text-blue-600 mb-1">{g.species_name}</p>
+                        <p className="text-xs text-slate-400 font-bold line-clamp-1">{g.description}</p>
+                     </button>
+                   ))}
+                </div>
+                
+                <div className="pt-8 border-t border-slate-50 w-full">
+                   <p className="text-xs text-slate-400 italic">পরামর্শ: পুকুরের মাছের নাম পরিবর্তন করে পুনরায় চেষ্টা করুন (যেমন: রুই, তেলাপিয়া, পাঙ্গাস)</p>
+                </div>
               </div>
             )}
           </div>
