@@ -22,85 +22,40 @@ import ResetPasswordPage from './pages/ResetPassword';
 import AccountSettings from './pages/AccountSettings';
 import { UserProfile, SubscriptionStatus, UserRole, Pond } from './types';
 
+const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') navigate('/reset-password');
+      else if (session) onProfileFetch(session.user.id);
+      else onProfileFetch("");
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate, onProfileFetch]);
+  return null;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const fetchProfile = async (id: string) => {
-    try {
-      if (!id) { 
-        setUser(null); 
-        setLoading(false); 
-        return; 
-      }
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-      if (error) throw error;
-      if (data) setUser(data as UserProfile);
-    } catch (err) {
-      console.error("Profile fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
+    if (!id) { setUser(null); setLoading(false); return; }
+    const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+    if (data) setUser(data as UserProfile);
+    setLoading(false);
   };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const initAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (isMounted) {
-          if (session) {
-            await fetchProfile(session.user.id);
-          } else {
-            setLoading(false);
-          }
-        }
-      } catch (err) {
-        console.error("Auth init error:", err);
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-          await fetchProfile(session.user.id);
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setLoading(false);
-        } else if (event === 'PASSWORD_RECOVERY') {
-          navigate('/reset-password');
-        }
-      } catch (err) {
-        console.error("Auth state change error:", err);
-        if (isMounted) setLoading(false);
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchProfile(session.user.id);
+      else setLoading(false);
     });
-
-    // Safety timeout: If still loading after 10 seconds, force stop loading
-    const timeout = setTimeout(() => {
-      if (isMounted) {
-        setLoading(false);
-      }
-    }, 10000);
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
-  }, [navigate]);
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    navigate('/');
   };
 
   if (loading) return (
@@ -111,14 +66,16 @@ const App: React.FC = () => {
   );
 
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
+    <Router>
+      <AuthListener onProfileFetch={fetchProfile} />
+      <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/founder" element={<OwnerProfile />} />
         <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} />} />
         <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" />} />
-        <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}>
+        <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
           <Route index element={<DashboardSummary user={user!} />} />
           <Route path="ponds" element={<PondsPage user={user!} />} />
           <Route path="expenses" element={<ExpensesPage user={user!} />} />
@@ -133,8 +90,9 @@ const App: React.FC = () => {
           <Route path="advisory" element={<AdvisoryPage user={user!} />} />
           <Route path="settings" element={<AccountSettings user={user!} onUpdateUser={fetchProfile} />} />
         </Route>
-        <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" />} />
+        <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/dashboard" />} />
       </Routes>
+    </Router>
   );
 };
 
@@ -244,10 +202,4 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   );
 };
 
-const AppWrapper: React.FC = () => (
-  <Router>
-    <App />
-  </Router>
-);
-
-export default AppWrapper;
+export default App;
