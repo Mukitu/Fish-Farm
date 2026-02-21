@@ -12,7 +12,7 @@ const OwnerProfile: React.FC = () => {
       {/* Cover Section */}
       <div className="relative h-64 md:h-96 w-full overflow-hidden">
         <img 
-          src="https://i.ibb.co/Xf8zK4v/nishat.jpg" 
+          src="https://scontent.fdac177-1.fna.fbcdn.net/v/t39.30808-6/608555197_1420424023055766_6960166380452882439_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=1d70fc&_nc_ohc=VDtI5LzDCkwQ7kNvwGorRgu&_nc_oc=AdlVk0i3DqZ7fdTTT3DmvG-BGSt95pB512_3tTB4BJfpdVmU9SUjD-cu6pjI94C9c84&_nc_zt=23&_nc_ht=scontent.fdac177-1.fna&_nc_gid=3yuVY-tGjNGqX9sp1FAnKA&oh=00_Aftmb1dQk15CWbBR4kWVlA9ViBDFZZOe-Y355HqKNMHDyg&oe=699F25C0" 
           alt="Cover" 
           className="w-full h-full object-cover blur-sm scale-110 opacity-40"
         />
