@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { SUBSCRIPTION_PLANS } from '../types';
 
 const Landing: React.FC = () => {
@@ -10,8 +11,34 @@ const Landing: React.FC = () => {
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
+    
+    // Visitor tracking
+    const trackVisit = async () => {
+      try {
+        await supabase.from('site_analytics').insert([{ 
+          page_path: window.location.pathname,
+          visitor_id: localStorage.getItem('visitor_id') || (() => {
+            const id = Math.random().toString(36).substring(2);
+            localStorage.setItem('visitor_id', id);
+            return id;
+          })()
+        }]);
+      } catch (e) {
+        console.error('Tracking error:', e);
+      }
+    };
+    trackVisit();
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
@@ -24,8 +51,8 @@ const Landing: React.FC = () => {
           </Link>
           
           <div className="hidden md:flex gap-8 text-slate-600 font-bold text-sm">
-            <a href="#features" className="hover:text-blue-600 transition-colors">বৈশিষ্ট্যসমূহ</a>
-            <a href="#pricing" className="hover:text-blue-600 transition-colors">মূল্যতালিকা</a>
+            <button onClick={() => scrollToSection('features')} className="hover:text-blue-600 transition-colors">বৈশিষ্ট্যসমূহ</button>
+            <button onClick={() => scrollToSection('pricing')} className="hover:text-blue-600 transition-colors">মূল্যতালিকা</button>
             <Link to="/founder" className="hover:text-blue-600 transition-colors">প্রতিষ্ঠাতা</Link>
           </div>
 
@@ -41,8 +68,8 @@ const Landing: React.FC = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-full left-4 right-4 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-8 space-y-6 animate-in slide-in-from-top-4 duration-300 z-50">
-            <a href="#features" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-lg">বৈশিষ্ট্যসমূহ</a>
-            <a href="#pricing" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-lg">মূল্যতালিকা</a>
+            <button onClick={() => scrollToSection('features')} className="block w-full text-left font-black text-slate-800 text-lg">বৈশিষ্ট্যসমূহ</button>
+            <button onClick={() => scrollToSection('pricing')} className="block w-full text-left font-black text-slate-800 text-lg">মূল্যতালিকা</button>
             <Link to="/founder" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-lg">প্রতিষ্ঠাতা</Link>
             <div className="h-px bg-slate-100"></div>
             <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block font-black text-blue-600 text-center text-xl">লগইন করুন</Link>
@@ -153,7 +180,7 @@ const Landing: React.FC = () => {
                     <Link to="/founder" className="hover:text-white transition-colors">প্রতিষ্ঠাতা</Link>
                 </div>
                 <p className="text-xs text-slate-500 font-bold border-t border-white/5 pt-8">
-                    &copy; ২০২৪ মৎস্য খামার। মুকিতু ইসলাম নিশাত কর্তৃক প্রস্তুতকৃত ও সংরক্ষিত।
+                    &copy; ২০২৬ মৎস্য খামার। মুকিতু ইসলাম নিশাত কর্তৃক প্রস্তুতকৃত ও সংরক্ষিত।
                 </p>
             </div>
         </div>

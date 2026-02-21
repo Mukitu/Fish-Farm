@@ -7,9 +7,13 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
   const [payments, setPayments] = useState<any[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<{ [key: string]: number }>({});
-  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'revenue'>('pending');
-  const [stats, setStats] = useState({ revenue: 0, activeUsers: 0 });
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'revenue' | 'settings' | 'coupons' | 'analytics'>('pending');
+  const [stats, setStats] = useState({ revenue: 0, activeUsers: 0, totalVisits: 0 });
   const [processing, setProcessing] = useState<string | null>(null);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
+  const [analytics, setAnalytics] = useState<any[]>([]);
+  const [newCoupon, setNewCoupon] = useState({ code: '', discount: 20 });
 
   useEffect(() => {
     fetchData();
@@ -27,13 +31,23 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
     } else if (activeTab === 'users') {
       const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
       if (data) setUsers(data as UserProfile[]);
+    } else if (activeTab === 'coupons') {
+      const { data } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+      if (data) setCoupons(data);
+    } else if (activeTab === 'settings') {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
+      if (data) setPlans(data.value);
+    } else if (activeTab === 'analytics') {
+      const { data } = await supabase.from('site_analytics').select('*').order('created_at', { ascending: false }).limit(100);
+      if (data) setAnalytics(data);
     }
     
     // Stats calculation
     const { data: revData } = await supabase.from('payments').select('amount').eq('status', 'APPROVED');
     const totalRevenue = revData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
-    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'ACTIVE');
-    setStats({ revenue: totalRevenue, activeUsers: count || 0 });
+    const { count: activeCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'ACTIVE');
+    const { count: visitCount } = await supabase.from('site_analytics').select('*', { count: 'exact', head: true });
+    setStats({ revenue: totalRevenue, activeUsers: activeCount || 0, totalVisits: visitCount || 0 });
   };
 
   const handleApprove = async (payment: any) => {
@@ -55,7 +69,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
     }
 
     // ২. প্রোফাইল স্ট্যাটাস এবং ফিচার লিমিট আপডেট
-    const plan = SUBSCRIPTION_PLANS.find(pl => pl.id === payment.plan_id);
+    const plan = plans.find(pl => pl.id === payment.plan_id);
     const maxPonds = plan ? plan.ponds : 1;
 
     const { error: profError } = await supabase.from('profiles').update({ 
@@ -80,6 +94,42 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
     }
   };
 
+  const handleDeleteUser = async (id: string) => {
+    if (confirm('আপনি কি এই ইউজারকে ডিলিট করতে চান? এটি সব ডাটা মুছে ফেলবে!')) {
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+      if (!error) fetchData();
+      else alert('ডিলিট করতে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeletePayment = async (id: string) => {
+    if (confirm('আপনি কি এই পেমেন্ট রেকর্ডটি ডিলিট করতে চান?')) {
+      const { error } = await supabase.from('payments').delete().eq('id', id);
+      if (!error) fetchData();
+      else alert('ডিলিট করতে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleUpdatePlans = async () => {
+    const { error } = await supabase.from('site_settings').upsert({ id: 'subscription_plans', value: plans });
+    if (!error) alert('প্রাইসিং আপডেট হয়েছে!');
+    else alert('আপডেট করতে সমস্যা হয়েছে।');
+  };
+
+  const handleAddCoupon = async () => {
+    if (!newCoupon.code) return;
+    const { error } = await supabase.from('coupons').insert([{ code: newCoupon.code.toUpperCase(), discount_percent: newCoupon.discount }]);
+    if (!error) {
+      setNewCoupon({ code: '', discount: 20 });
+      fetchData();
+    } else alert('কুপন যোগ করতে সমস্যা হয়েছে।');
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    await supabase.from('coupons').delete().eq('id', id);
+    fetchData();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
       <nav className="bg-slate-900 text-white p-6 sticky top-0 z-50 shadow-2xl flex justify-between items-center">
@@ -97,16 +147,23 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
                  <span className="text-blue-400 font-black">{stats.activeUsers} জন</span>
                  <span>সক্রিয় খামারি</span>
               </div>
+              <div className="flex flex-col items-end border-l border-white/10 pl-4">
+                 <span className="text-amber-400 font-black">{stats.totalVisits} বার</span>
+                 <span>ভিজিটর</span>
+              </div>
            </div>
            <button onClick={onLogout} className="px-5 py-2.5 bg-rose-600/10 text-rose-500 rounded-xl text-xs font-black hover:bg-rose-600 hover:text-white transition-all">লগআউট</button>
         </div>
       </nav>
 
       <div className="max-w-6xl mx-auto p-6 md:p-12">
-        <div className="flex gap-2 mb-10 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex flex-wrap gap-2 mb-10 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
            <TabButton label="পেন্ডিং পেমেন্ট" active={activeTab === 'pending'} onClick={() => setActiveTab('pending')} count={payments.length} />
            <TabButton label="ইউজার তালিকা" active={activeTab === 'users'} onClick={() => setActiveTab('users')} />
            <TabButton label="আর্থিক রিপোর্ট" active={activeTab === 'revenue'} onClick={() => setActiveTab('revenue')} />
+           <TabButton label="প্রাইসিং" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+           <TabButton label="কুপন" active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} />
+           <TabButton label="অ্যানালিটিক্স" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
         </div>
 
         {activeTab === 'pending' && (
@@ -114,10 +171,10 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
             {payments.map(p => (
               <div key={p.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-center gap-8 animate-in slide-in-from-bottom-4 duration-500">
                 <div className="flex-1 space-y-2 text-center lg:text-left">
-                  <h3 className="text-xl font-black text-slate-800">{p.profiles.farm_name}</h3>
+                  <h3 className="text-xl font-black text-slate-800">{p.profiles?.farm_name || 'অজানা খামার'}</h3>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-400 font-bold text-xs justify-center lg:justify-start">
-                     <span>📧 {p.profiles.email}</span>
-                     <span>📞 {p.profiles.phone || 'নেই'}</span>
+                     <span>📧 {p.profiles?.email}</span>
+                     <span>📞 {p.profiles?.phone || 'নেই'}</span>
                   </div>
                   <div className="inline-block px-4 py-1.5 bg-blue-50 rounded-xl font-mono text-blue-600 font-black text-sm uppercase mt-2 border border-blue-100">
                     TrxID: {p.trx_id}
@@ -169,7 +226,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
                          <th className="px-8 py-6">ইমেইল ও ফোন</th>
                          <th className="px-8 py-6">অবস্থা</th>
                          <th className="px-8 py-6">পুকুর সীমা</th>
-                         <th className="px-8 py-6">মেয়াদ শেষ</th>
+                         <th className="px-8 py-6">অ্যাকশন</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-50 text-slate-700">
@@ -186,7 +243,9 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
                               </span>
                            </td>
                            <td className="px-8 py-6 font-bold">{u.max_ponds === 999 ? 'আনলিমিটেড' : u.max_ponds}টি</td>
-                           <td className="px-8 py-6 text-sm font-medium">{u.expiry_date ? new Date(u.expiry_date).toLocaleDateString('bn-BD') : '-'}</td>
+                           <td className="px-8 py-6">
+                              <button onClick={() => handleDeleteUser(u.id)} className="text-rose-500 hover:text-rose-700 font-black text-xs uppercase tracking-widest">ডিলিট</button>
+                           </td>
                         </tr>
                       ))}
                    </tbody>
@@ -196,22 +255,175 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
         )}
 
         {activeTab === 'revenue' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in zoom-in-95 duration-300">
-             <div className="bg-blue-600 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform duration-700"></div>
-                <h3 className="text-lg font-bold opacity-80 mb-2">সর্বমোট আয়</h3>
-                <p className="text-6xl font-black tracking-tighter mb-8">৳ {stats.revenue.toLocaleString()}</p>
-                <div className="pt-8 border-t border-white/10 flex justify-between">
-                   <span className="text-xs font-bold">সার্ভার স্ট্যাটাস:</span>
-                   <span className="text-sm font-black text-green-300">অনলাইন (সচল)</span>
+          <div className="space-y-8">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in zoom-in-95 duration-300">
+                <div className="bg-blue-600 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform duration-700"></div>
+                   <h3 className="text-lg font-bold opacity-80 mb-2">সর্বমোট আয়</h3>
+                   <p className="text-6xl font-black tracking-tighter mb-8">৳ {stats.revenue.toLocaleString()}</p>
+                   <div className="pt-8 border-t border-white/10 flex justify-between">
+                      <span className="text-xs font-bold">সার্ভার স্ট্যাটাস:</span>
+                      <span className="text-sm font-black text-green-300">অনলাইন (সচল)</span>
+                   </div>
+                </div>
+                <div className="bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
+                   <h3 className="text-lg font-bold opacity-80 mb-2">এক্টিভ ইউজার</h3>
+                   <p className="text-6xl font-black tracking-tighter mb-8">{stats.activeUsers} <span className="text-2xl font-medium">জন</span></p>
+                   <div className="pt-8 border-t border-white/10 flex justify-between">
+                      <span className="text-xs font-bold">ইউজার প্রবৃদ্ধি:</span>
+                      <span className="text-sm font-black text-blue-400">+১৫%</span>
+                   </div>
                 </div>
              </div>
-             <div className="bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
-                <h3 className="text-lg font-bold opacity-80 mb-2">এক্টিভ ইউজার</h3>
-                <p className="text-6xl font-black tracking-tighter mb-8">{stats.activeUsers} <span className="text-2xl font-medium">জন</span></p>
-                <div className="pt-8 border-t border-white/10 flex justify-between">
-                   <span className="text-xs font-bold">ইউজার প্রবৃদ্ধি:</span>
-                   <span className="text-sm font-black text-blue-400">+১৫%</span>
+
+             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+                   <h3 className="text-xl font-black text-slate-800">আর্থিক রিপোর্ট (পেমেন্ট হিস্ট্রি)</h3>
+                </div>
+                <div className="overflow-x-auto">
+                   <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                         <tr>
+                            <th className="px-8 py-6">তারিখ</th>
+                            <th className="px-8 py-6">পরিমাণ</th>
+                            <th className="px-8 py-6">TrxID</th>
+                            <th className="px-8 py-6">অবস্থা</th>
+                            <th className="px-8 py-6">অ্যাকশন</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 text-slate-700">
+                         {payments.map(p => (
+                           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-8 py-6 text-sm">{new Date(p.created_at).toLocaleDateString('bn-BD')}</td>
+                              <td className="px-8 py-6 font-black">৳ {p.amount}</td>
+                              <td className="px-8 py-6 font-mono text-xs">{p.trx_id}</td>
+                              <td className="px-8 py-6">
+                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black ${p.status === 'APPROVED' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    {p.status}
+                                 </span>
+                              </td>
+                              <td className="px-8 py-6">
+                                 <button onClick={() => handleDeletePayment(p.id)} className="text-rose-500 hover:text-rose-700 font-black text-xs uppercase tracking-widest">ডিলিট</button>
+                              </td>
+                           </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-slate-100 space-y-8 animate-in slide-in-from-right-4 duration-300">
+             <h3 className="text-2xl font-black text-slate-800">প্রাইসিং ম্যানেজমেন্ট</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {plans.map((plan, idx) => (
+                  <div key={idx} className="p-6 bg-slate-50 rounded-3xl space-y-4">
+                     <p className="font-black text-blue-600 uppercase text-[10px] tracking-widest">{plan.label}</p>
+                     <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400">মূল্য (৳)</label>
+                        <input 
+                          type="number" 
+                          value={plan.price} 
+                          onChange={e => {
+                            const newPlans = [...plans];
+                            newPlans[idx].price = Number(e.target.value);
+                            setPlans(newPlans);
+                          }}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 font-black text-slate-800"
+                        />
+                     </div>
+                  </div>
+                ))}
+             </div>
+             <button onClick={handleUpdatePlans} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all">সেভ করুন</button>
+          </div>
+        )}
+
+        {activeTab === 'coupons' && (
+          <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+             <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                <h3 className="text-2xl font-black text-slate-800">নতুন কুপন যোগ করুন</h3>
+                <div className="flex flex-col md:flex-row gap-4">
+                   <input 
+                     placeholder="কুপন কোড (যেমন: SAVE20)" 
+                     value={newCoupon.code}
+                     onChange={e => setNewCoupon({...newCoupon, code: e.target.value})}
+                     className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-100 outline-none focus:border-blue-600 font-black uppercase"
+                   />
+                   <input 
+                     type="number"
+                     placeholder="ডিসকাউন্ট (%)" 
+                     value={newCoupon.discount}
+                     onChange={e => setNewCoupon({...newCoupon, discount: Number(e.target.value)})}
+                     className="w-full md:w-40 px-6 py-4 rounded-2xl border-2 border-slate-100 outline-none focus:border-blue-600 font-black"
+                   />
+                   <button onClick={handleAddCoupon} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-blue-600 transition-all">যোগ করুন</button>
+                </div>
+             </div>
+
+             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                      <tr>
+                         <th className="px-8 py-6">কোড</th>
+                         <th className="px-8 py-6">ডিসকাউন্ট</th>
+                         <th className="px-8 py-6">অবস্থা</th>
+                         <th className="px-8 py-6">অ্যাকশন</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-50 text-slate-700">
+                      {coupons.map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                           <td className="px-8 py-6 font-black text-blue-600">{c.code}</td>
+                           <td className="px-8 py-6 font-bold">{c.discount_percent}%</td>
+                           <td className="px-8 py-6">
+                              <span className="px-3 py-1 bg-green-100 text-green-600 rounded-full text-[10px] font-black">ACTIVE</span>
+                           </td>
+                           <td className="px-8 py-6">
+                              <button onClick={() => handleDeleteCoupon(c.id)} className="text-rose-500 hover:text-rose-700 font-black text-xs uppercase tracking-widest">ডিলিট</button>
+                           </td>
+                        </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">মোট ভিজিট</p>
+                   <p className="text-4xl font-black text-slate-800">{stats.totalVisits}</p>
+                </div>
+             </div>
+
+             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-50">
+                   <h3 className="text-xl font-black text-slate-800">সাম্প্রতিক ভিজিটর অ্যাক্টিভিটি</h3>
+                </div>
+                <div className="overflow-x-auto">
+                   <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                         <tr>
+                            <th className="px-8 py-6">সময়</th>
+                            <th className="px-8 py-6">পেজ</th>
+                            <th className="px-8 py-6">ভিজিটর আইডি</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 text-slate-700">
+                         {analytics.map(a => (
+                           <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-8 py-6 text-xs">{new Date(a.created_at).toLocaleString('bn-BD')}</td>
+                              <td className="px-8 py-6 font-bold text-blue-600">{a.page_path}</td>
+                              <td className="px-8 py-6 font-mono text-[10px] text-slate-400">{a.visitor_id}</td>
+                           </tr>
+                         ))}
+                      </tbody>
+                   </table>
                 </div>
              </div>
           </div>

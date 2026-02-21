@@ -5,15 +5,43 @@ import { supabase } from '../lib/supabase';
 import { UserProfile, SubscriptionStatus, SUBSCRIPTION_PLANS } from '../types';
 
 const SubscriptionPage: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ user, onUpdateUser }) => {
+  const [plans, setPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
   const [selectedPlan, setSelectedPlan] = useState(SUBSCRIPTION_PLANS[0]);
   const [months, setMonths] = useState(1);
   const [trxId, setTrxId] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any | null>(null);
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
 
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
+      if (data) {
+        setPlans(data.value);
+        setSelectedPlan(data.value[0]);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    const { data, error } = await supabase.from('coupons').select('*').eq('code', couponCode.toUpperCase()).eq('is_active', true).single();
+    if (data) {
+      setAppliedCoupon(data);
+      alert(`কুপন সফলভাবে প্রয়োগ হয়েছে! আপনি ${data.discount_percent}% ডিসকাউন্ট পেয়েছেন।`);
+    } else {
+      alert('ভুল কুপন কোড অথবা কুপনটি এখন সচল নেই।');
+      setAppliedCoupon(null);
+    }
+  };
+
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalAmount = selectedPlan.price * months;
+    const baseAmount = selectedPlan.price * months;
+    const discount = appliedCoupon ? (baseAmount * appliedCoupon.discount_percent / 100) : 0;
+    const totalAmount = baseAmount - discount;
     
     const { error } = await supabase.from('payments').insert([{
       user_id: user.id,
@@ -25,19 +53,18 @@ const SubscriptionPage: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ 
     }]);
 
     if (!error) {
-      // পেমেন্ট সাবমিটের পর প্রোফাইল স্ট্যাটাস পেন্ডিং করা হচ্ছে
       await supabase.from('profiles').update({ 
         subscription_status: SubscriptionStatus.PENDING 
       }).eq('id', user.id);
-      
-      // ইউজারকে লগইন রাখা হচ্ছে এবং কনফার্মেশন দেখানো হচ্ছে
       setStep(3);
     } else {
       alert('পেমেন্ট সাবমিট করতে সমস্যা হয়েছে অথবা Transaction ID আগে ব্যবহৃত হয়েছে।');
     }
   };
 
-  const totalPayment = selectedPlan.price * months;
+  const baseTotal = selectedPlan.price * months;
+  const discountAmount = appliedCoupon ? (baseTotal * appliedCoupon.discount_percent / 100) : 0;
+  const totalPayment = baseTotal - discountAmount;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 flex items-center justify-center font-['Hind_Siliguri']">
@@ -51,7 +78,7 @@ const SubscriptionPage: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ 
           {step === 1 && (
             <div className="space-y-8 animate-in fade-in duration-300">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {SUBSCRIPTION_PLANS.map(plan => (
+                {plans.map(plan => (
                   <button 
                     key={plan.id} 
                     onClick={() => setSelectedPlan(plan)} 
@@ -63,30 +90,59 @@ const SubscriptionPage: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ 
                 ))}
               </div>
               
-              <div className="bg-slate-50 p-8 rounded-3xl space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                   <label className="font-black text-slate-700">মেয়াদ নির্বাচন করুন</label>
-                   <span className="bg-blue-600 text-white px-4 py-1 rounded-full font-black text-sm">{months} মাস</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-slate-50 p-8 rounded-3xl space-y-4">
+                  <div className="flex justify-between items-center mb-2">
+                     <label className="font-black text-slate-700">মেয়াদ নির্বাচন করুন</label>
+                     <span className="bg-blue-600 text-white px-4 py-1 rounded-full font-black text-sm">{months} মাস</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="12" 
+                    value={months} 
+                    onChange={e => setMonths(Number(e.target.value))} 
+                    className="w-full h-3 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+                  />
+                  <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <span>১ মাস</span>
+                    <span>৬ মাস</span>
+                    <span>১২ মাস</span>
+                  </div>
                 </div>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="12" 
-                  value={months} 
-                  onChange={e => setMonths(Number(e.target.value))} 
-                  className="w-full h-3 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
-                />
-                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  <span>১ মাস</span>
-                  <span>৬ মাস</span>
-                  <span>১২ মাস</span>
+
+                <div className="bg-slate-50 p-8 rounded-3xl space-y-4">
+                  <label className="font-black text-slate-700 block">কুপন কোড (যদি থাকে)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={couponCode}
+                      onChange={e => setCouponCode(e.target.value)}
+                      placeholder="কুপন দিন"
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 font-black uppercase outline-none focus:border-blue-600"
+                    />
+                    <button 
+                      onClick={handleApplyCoupon}
+                      className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black hover:bg-blue-600 transition-all"
+                    >
+                      প্রয়োগ
+                    </button>
+                  </div>
+                  {appliedCoupon && (
+                    <p className="text-xs font-black text-green-600">✓ {appliedCoupon.discount_percent}% ডিসকাউন্ট প্রয়োগ হয়েছে!</p>
+                  )}
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row justify-between items-center bg-blue-600 p-8 rounded-[2rem] text-white shadow-xl shadow-blue-200 gap-6">
                 <div>
                   <p className="text-xs opacity-80 font-bold uppercase tracking-widest mb-1">সর্বমোট পেমেন্ট পরিমাণ</p>
-                  <p className="text-4xl font-black">৳ {totalPayment}</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-4xl font-black">৳ {totalPayment}</p>
+                    {appliedCoupon && (
+                      <p className="text-sm line-through opacity-50 font-bold">৳ {baseTotal}</p>
+                    )}
+                  </div>
                 </div>
                 <button 
                   onClick={() => setStep(2)} 
