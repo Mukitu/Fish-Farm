@@ -33,6 +33,7 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!newSale.pond_id || !newSale.amount || !newSale.weight) {
       alert("পুকুর, ওজন এবং মোট টাকার পরিমাণ দিন!");
       return;

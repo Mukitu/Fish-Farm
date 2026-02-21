@@ -14,14 +14,17 @@ CREATE TABLE IF NOT EXISTS site_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Initialize site_settings with default plans
+-- Initialize site_settings with default plans (all 6)
 INSERT INTO site_settings (id, value)
 VALUES ('subscription_plans', '[
-    {"id": "basic", "label": "বেসিক প্ল্যান", "price": 299, "ponds": 3},
-    {"id": "standard", "label": "স্ট্যান্ডার্ড প্ল্যান", "price": 599, "ponds": 10},
-    {"id": "premium", "label": "প্রিমিয়াম প্ল্যান", "price": 999, "ponds": 999}
+    {"id": 1, "label": "১টি পুকুর", "price": 150, "ponds": 1},
+    {"id": 2, "label": "২টি পুকুর", "price": 300, "ponds": 2},
+    {"id": 3, "label": "৩টি পুকুর", "price": 400, "ponds": 3},
+    {"id": 4, "label": "৪টি পুকুর", "price": 500, "ponds": 4},
+    {"id": 5, "label": "৫টি পুকুর", "price": 550, "ponds": 5},
+    {"id": 6, "label": "আনলিমিটেড পুকুর", "price": 800, "ponds": 999}
 ]')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
 
 -- Create analytics table for visitor tracking
 CREATE TABLE IF NOT EXISTS site_analytics (

@@ -116,6 +116,17 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
     else alert('আপডেট করতে সমস্যা হয়েছে।');
   };
 
+  const handleAddPlan = () => {
+    const newId = plans.length > 0 ? Math.max(...plans.map(p => p.id)) + 1 : 1;
+    setPlans([...plans, { id: newId, label: 'নতুন প্ল্যান', price: 0, ponds: 1 }]);
+  };
+
+  const handleRemovePlan = (id: number) => {
+    if (confirm('আপনি কি এই প্ল্যানটি ডিলিট করতে চান?')) {
+      setPlans(plans.filter(p => p.id !== id));
+    }
+  };
+
   const handleAddCoupon = async () => {
     if (!newCoupon.code) return;
     const { error } = await supabase.from('coupons').insert([{ code: newCoupon.code.toUpperCase(), discount_percent: newCoupon.discount }]);
@@ -316,23 +327,54 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
 
         {activeTab === 'settings' && (
           <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-slate-100 space-y-8 animate-in slide-in-from-right-4 duration-300">
-             <h3 className="text-2xl font-black text-slate-800">প্রাইসিং ম্যানেজমেন্ট</h3>
+             <div className="flex justify-between items-center">
+                <h3 className="text-2xl font-black text-slate-800">প্রাইসিং ম্যানেজমেন্ট</h3>
+                <button onClick={handleAddPlan} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all">নতুন প্ল্যান যোগ করুন</button>
+             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {plans.map((plan, idx) => (
-                  <div key={idx} className="p-6 bg-slate-50 rounded-3xl space-y-4">
-                     <p className="font-black text-blue-600 uppercase text-[10px] tracking-widest">{plan.label}</p>
+                  <div key={idx} className="p-6 bg-slate-50 rounded-3xl space-y-4 relative group">
+                     <button onClick={() => handleRemovePlan(plan.id)} className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-400">মূল্য (৳)</label>
+                        <label className="text-xs font-bold text-slate-400">লেবেল</label>
                         <input 
-                          type="number" 
-                          value={plan.price} 
+                          type="text" 
+                          value={plan.label} 
                           onChange={e => {
                             const newPlans = [...plans];
-                            newPlans[idx].price = Number(e.target.value);
+                            newPlans[idx].label = e.target.value;
                             setPlans(newPlans);
                           }}
                           className="w-full px-4 py-3 rounded-xl border border-slate-200 font-black text-slate-800"
                         />
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <label className="text-xs font-bold text-slate-400">মূল্য (৳)</label>
+                           <input 
+                             type="number" 
+                             value={plan.price} 
+                             onChange={e => {
+                               const newPlans = [...plans];
+                               newPlans[idx].price = Number(e.target.value);
+                               setPlans(newPlans);
+                             }}
+                             className="w-full px-4 py-3 rounded-xl border border-slate-200 font-black text-slate-800"
+                           />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-xs font-bold text-slate-400">পুকুর সংখ্যা</label>
+                           <input 
+                             type="number" 
+                             value={plan.ponds} 
+                             onChange={e => {
+                               const newPlans = [...plans];
+                               newPlans[idx].ponds = Number(e.target.value);
+                               setPlans(newPlans);
+                             }}
+                             className="w-full px-4 py-3 rounded-xl border border-slate-200 font-black text-slate-800"
+                           />
+                        </div>
                      </div>
                   </div>
                 ))}

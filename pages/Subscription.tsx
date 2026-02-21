@@ -39,6 +39,7 @@ const SubscriptionPage: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ 
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (user.id === 'guest-id') return alert('ডেমো মোডে পেমেন্ট সাবমিট করা যাবে না।');
     const baseAmount = selectedPlan.price * months;
     const discount = appliedCoupon ? (baseAmount * appliedCoupon.discount_percent / 100) : 0;
     const totalAmount = baseAmount - discount;

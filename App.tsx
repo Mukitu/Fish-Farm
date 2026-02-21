@@ -38,11 +38,33 @@ const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onPr
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
 
   const fetchProfile = async (id: string) => {
-    if (!id) { setUser(null); setLoading(false); return; }
+    if (!id) { 
+      if (!isGuest) {
+        setUser(null); 
+      }
+      setLoading(false); 
+      return; 
+    }
     const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
     if (data) setUser(data as UserProfile);
+    setLoading(false);
+  };
+
+  const enterGuestMode = () => {
+    setIsGuest(true);
+    setUser({
+      id: 'guest-id',
+      email: 'guest@demo.com',
+      role: UserRole.FARMER,
+      subscription_status: SubscriptionStatus.ACTIVE,
+      expiry_date: new Date(Date.now() + 86400000).toISOString(),
+      max_ponds: 5,
+      farm_name: 'ডেমো মৎস্য খামার',
+      full_name: 'অতিথি ইউজার'
+    });
     setLoading(false);
   };
 
@@ -69,10 +91,10 @@ const App: React.FC = () => {
     <Router>
       <AuthListener onProfileFetch={fetchProfile} />
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Landing enterGuestMode={enterGuestMode} />} />
         <Route path="/founder" element={<OwnerProfile />} />
-        <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} />} />
-        <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} />} />
+        <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
+        <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" />} />
         <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
@@ -125,6 +147,7 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const handleSaveMetric = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!metricForm.pond_id) return alert('পুকুর নির্বাচন করুন');
     setSavingMetric(true);
     try {

@@ -7,9 +7,10 @@ import { UserProfile, UserRole, SubscriptionStatus } from '../types';
 interface AuthProps {
   type: 'login' | 'register';
   onLogin: (user: UserProfile) => void;
+  enterGuestMode: () => void;
 }
 
-const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
+const AuthPage: React.FC<AuthProps> = ({ type, onLogin, enterGuestMode }) => {
   const [view, setView] = useState<'auth' | 'forgot'>('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +20,11 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const handleDemo = () => {
+    enterGuestMode();
+    navigate('/dashboard');
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,6 +191,15 @@ const AuthPage: React.FC<AuthProps> = ({ type, onLogin }) => {
 
               <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 mt-4">
                 {loading ? 'অপেক্ষা করুন...' : (type === 'login' ? 'লগইন' : 'অ্যাকাউন্ট তৈরি করুন')}
+              </button>
+
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-slate-400 font-black">অথবা</span></div>
+              </div>
+
+              <button type="button" onClick={handleDemo} className="w-full py-4 bg-emerald-50 text-emerald-600 rounded-[2rem] font-black text-lg border-2 border-emerald-100 hover:bg-emerald-100 transition-all active:scale-[0.98]">
+                ডেমো দেখুন (Guest)
               </button>
             </form>
           ) : (

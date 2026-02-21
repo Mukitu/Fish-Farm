@@ -51,6 +51,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAddPond = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (ponds.length >= user.max_ponds) {
       alert(`⚠️ আপনার প্যাকেজ লিমিট শেষ! আপনি সর্বোচ্চ ${user.max_ponds}টি পুকুর যোগ করতে পারবেন। প্যাকেজ আপগ্রেড করুন।`);
       return;
@@ -77,6 +78,7 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleStocking = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!selectedPond || !stocking.species) return alert("মাছের জাত নির্বাচন করুন");
     setSaving(true);
     try {

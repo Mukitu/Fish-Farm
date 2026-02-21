@@ -23,6 +23,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!newExp.pond_id || !newExp.amount) return alert("পুকুর ও টাকার পরিমাণ দিন!");
     try {
       await supabase.from('expenses').insert([{

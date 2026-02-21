@@ -1,17 +1,28 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SUBSCRIPTION_PLANS } from '../types';
 
-const Landing: React.FC = () => {
+const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [plans, setPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     
+    // Fetch dynamic plans
+    const fetchPlans = async () => {
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
+      if (data && data.value) {
+        setPlans(data.value);
+      }
+    };
+    fetchPlans();
+
     // Visitor tracking
     const trackVisit = async () => {
       try {
@@ -40,6 +51,11 @@ const Landing: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  const handleDemo = () => {
+    enterGuestMode();
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
       {/* Navigation */}
@@ -57,6 +73,7 @@ const Landing: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <button onClick={handleDemo} className="hidden sm:block px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-xs border border-emerald-100 hover:bg-emerald-100 transition-all">ডেমো</button>
             <Link to="/login" className="hidden sm:block text-slate-600 font-bold text-sm px-4">লগইন</Link>
             <Link to="/register" className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">শুরু করুন</Link>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-slate-800 bg-slate-100 rounded-lg transition-transform active:scale-90">
@@ -68,6 +85,7 @@ const Landing: React.FC = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-full left-4 right-4 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-8 space-y-6 animate-in slide-in-from-top-4 duration-300 z-50">
+            <button onClick={handleDemo} className="block w-full text-left font-black text-emerald-600 text-lg">ডেমো দেখুন (Guest)</button>
             <button onClick={() => scrollToSection('features')} className="block w-full text-left font-black text-slate-800 text-lg">বৈশিষ্ট্যসমূহ</button>
             <button onClick={() => scrollToSection('pricing')} className="block w-full text-left font-black text-slate-800 text-lg">মূল্যতালিকা</button>
             <Link to="/founder" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-lg">প্রতিষ্ঠাতা</Link>
@@ -100,6 +118,7 @@ const Landing: React.FC = () => {
         
         <div className="flex flex-col sm:flex-row justify-center gap-5 w-full sm:w-auto">
           <Link to="/register" className="px-12 py-5 bg-blue-600 text-white rounded-2xl text-xl font-black shadow-2xl shadow-blue-400/40 hover:bg-blue-700 transition-all hover:-translate-y-1 text-center">ফ্রি রেজিস্ট্রেশন</Link>
+          <button onClick={handleDemo} className="px-12 py-5 bg-emerald-600 text-white rounded-2xl text-xl font-black shadow-2xl shadow-emerald-400/40 hover:bg-emerald-700 transition-all hover:-translate-y-1 text-center">ডেমো দেখুন (Guest)</button>
           <Link to="/founder" className="px-12 py-5 bg-white text-slate-800 border border-slate-200 rounded-2xl text-xl font-black hover:bg-slate-50 transition-all text-center">প্রতিষ্ঠাতার সাথে কথা বলুন</Link>
         </div>
       </header>
@@ -113,7 +132,7 @@ const Landing: React.FC = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {SUBSCRIPTION_PLANS.map((plan) => (
+            {plans.map((plan) => (
               <div key={plan.id} className="bg-white border-2 border-slate-100 rounded-[3rem] p-10 flex flex-col items-center text-center hover:border-blue-600 hover:shadow-2xl transition-all group relative overflow-hidden">
                 {plan.ponds === 999 && (
                   <div className="absolute top-0 right-0 bg-blue-600 text-white px-8 py-1.5 rotate-45 translate-x-8 translate-y-4 font-black text-[10px] uppercase">Best Value</div>
