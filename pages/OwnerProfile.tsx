@@ -5,10 +5,21 @@ import { Link } from 'react-router-dom';
 const OwnerProfile: React.FC = () => {
   return (
     <div className="min-h-screen bg-white font-['Hind_Siliguri']">
-      <nav className="p-6 border-b border-slate-50">
-        <Link to="/" className="text-blue-600 font-black">← হোম পেজে ফিরে যান</Link>
+      <nav className="p-6 border-b border-slate-50 absolute top-0 left-0 w-full z-10">
+        <Link to="/" className="text-white font-black drop-shadow-md">← হোম পেজে ফিরে যান</Link>
       </nav>
-      <div className="max-w-4xl mx-auto py-16 px-6 text-center">
+
+      {/* Cover Section */}
+      <div className="relative h-64 md:h-96 w-full overflow-hidden">
+        <img 
+          src="https://i.ibb.co/Xf8zK4v/nishat.jpg" 
+          alt="Cover" 
+          className="w-full h-full object-cover blur-sm scale-110 opacity-40"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 to-white"></div>
+      </div>
+
+      <div className="max-w-4xl mx-auto -mt-32 md:-mt-48 px-6 text-center relative z-10">
         <div className="relative inline-block mb-10">
           <div className="absolute inset-0 bg-blue-600 rounded-[3rem] rotate-6 -z-10 opacity-10"></div>
           <img 
