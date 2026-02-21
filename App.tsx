@@ -130,10 +130,13 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const fetchData = async () => {
     if (user.id === 'guest-id') {
-      setStats({ totalExp: 15000, totalSale: 45000, totalPonds: 3 });
+      setStats({ totalExp: 45600, totalSale: 125000, totalPonds: 5 });
       setPonds([
-        { id: '1', name: 'পুকুর ১', area: 20, fish_type: 'রুই', stock_date: '2024-01-01', is_active: true, user_id: 'guest' },
-        { id: '2', name: 'পুকুর ২', area: 15, fish_type: 'কাতলা', stock_date: '2024-01-05', is_active: true, user_id: 'guest' }
+        { id: '1', name: 'পুকুর ১ (রুই)', area: 20, fish_type: 'রুই', stock_date: '2024-01-01', is_active: true, user_id: 'guest' },
+        { id: '2', name: 'পুকুর ২ (কাতলা)', area: 15, fish_type: 'কাতলা', stock_date: '2024-01-05', is_active: true, user_id: 'guest' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', area: 30, fish_type: 'পাঙ্গাস', stock_date: '2024-01-10', is_active: true, user_id: 'guest' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', area: 10, fish_type: 'তেলাপিয়া', stock_date: '2024-01-15', is_active: true, user_id: 'guest' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)', area: 25, fish_type: 'কার্প', stock_date: '2024-01-20', is_active: true, user_id: 'guest' }
       ] as any);
       return;
     }

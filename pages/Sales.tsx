@@ -16,10 +16,18 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const fetchData = async () => {
     if (user.id === 'guest-id') {
-      setPonds([{ id: '1', name: 'পুকুর ১' }, { id: '2', name: 'পুকুর ২' }] as any);
+      setPonds([
+        { id: '1', name: 'পুকুর ১ (রুই)' }, 
+        { id: '2', name: 'পুকুর ২ (কাতলা)' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)' }
+      ] as any);
       setSales([
-        { id: 's1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১' }, weight_kg: 100, amount: 25000 },
-        { id: 's2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২' }, weight_kg: 80, amount: 20000 }
+        { id: 's1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, weight_kg: 250, amount: 65000 },
+        { id: 's2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, weight_kg: 120, amount: 38000 },
+        { id: 's3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৪ (তেলাপিয়া)' }, weight_kg: 80, amount: 12000 },
+        { id: 's4', date: new Date().toISOString(), ponds: { name: 'পুকুর ৫ (কার্প)' }, weight_kg: 50, amount: 10000 }
       ]);
       setLoading(false);
       return;

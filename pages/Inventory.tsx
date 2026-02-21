@@ -14,6 +14,16 @@ const InventoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setItems([
+        { id: 'i1', user_id: 'guest', name: 'নারিশ ফিড (গ্রোয়ার)', quantity: 450, unit: 'কেজি', type: 'খাবার', low_stock_threshold: 100 },
+        { id: 'i2', user_id: 'guest', name: 'মেগা ফিড (স্টার্টার)', quantity: 80, unit: 'কেজি', type: 'খাবার', low_stock_threshold: 100 },
+        { id: 'i3', user_id: 'guest', name: 'অক্সি-ম্যাক্স (অক্সিজেন পাউডার)', quantity: 15, unit: 'প্যাকেট', type: 'ওষুধ', low_stock_threshold: 5 },
+        { id: 'i4', user_id: 'guest', name: 'জিও-লাইফ (পানি শোধন)', quantity: 10, unit: 'লিটার', type: 'ওষুধ', low_stock_threshold: 2 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
     if (data) setItems(data as InventoryItem[]);
@@ -21,6 +31,7 @@ const InventoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!newItem.name || !newItem.quantity) return;
     const { error } = await supabase.from('inventory').insert([{
       user_id: user.id,

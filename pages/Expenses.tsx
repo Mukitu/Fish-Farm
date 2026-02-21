@@ -14,10 +14,20 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const fetchData = async () => {
     if (user.id === 'guest-id') {
-      setPonds([{ id: '1', name: 'পুকুর ১' }, { id: '2', name: 'পুকুর ২' }] as any);
+      setPonds([
+        { id: '1', name: 'পুকুর ১ (রুই)' }, 
+        { id: '2', name: 'পুকুর ২ (কাতলা)' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)' }
+      ] as any);
       setExpenses([
-        { id: 'e1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১' }, item_name: 'মাছের খাবার', amount: 5000 },
-        { id: 'e2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২' }, item_name: 'ঔষধ', amount: 2000 }
+        { id: 'e1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, item_name: 'মাছের খাবার (নারিশ)', amount: 12000 },
+        { id: 'e2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, item_name: 'চুন ও সার', amount: 3500 },
+        { id: 'e3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, item_name: 'খাবার (মেগা)', amount: 18000 },
+        { id: 'e4', date: new Date().toISOString(), ponds: { name: 'পুকুর ৪ (তেলাপিয়া)' }, item_name: 'পোনা ক্রয়', amount: 5000 },
+        { id: 'e5', date: new Date().toISOString(), ponds: { name: 'পুকুর ৫ (কার্প)' }, item_name: 'শ্রমিক মজুরি', amount: 4500 },
+        { id: 'e6', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, item_name: 'ভিটামিন ও ঔষধ', amount: 2600 }
       ]);
       setLoading(false);
       return;

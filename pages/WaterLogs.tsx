@@ -13,6 +13,22 @@ const WaterLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setPonds([
+        { id: '1', name: 'পুকুর ১ (রুই)' }, 
+        { id: '2', name: 'পুকুর ২ (কাতলা)' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)' }
+      ] as any);
+      setLogs([
+        { id: 'w1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, oxygen: 6.5, ph: 7.8, temp: 28 },
+        { id: 'w2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, oxygen: 4.2, ph: 8.1, temp: 29 },
+        { id: 'w3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, oxygen: 5.8, ph: 7.5, temp: 27 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: pData } = await supabase.from('ponds').select('*').eq('user_id', user.id);
@@ -31,6 +47,7 @@ const WaterLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!newLog.pond_id) return alert("পুকুর নির্বাচন করুন!");
     try {
       const { error } = await supabase.from('water_logs').insert([{

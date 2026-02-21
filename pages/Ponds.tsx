@@ -28,8 +28,11 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchPonds = async () => {
     if (user.id === 'guest-id') {
       setPonds([
-        { id: '1', name: 'পুকুর ১', area: 20, fish_type: 'রুই', total_weight: 500, total_count: 1200, avg_weight: 416 },
-        { id: '2', name: 'পুকুর ২', area: 15, fish_type: 'কাতলা', total_weight: 300, total_count: 800, avg_weight: 375 }
+        { id: '1', name: 'পুকুর ১ (রুই)', area: 20, fish_type: 'রুই', total_weight: 1200, total_count: 2500, avg_weight: 480 },
+        { id: '2', name: 'পুকুর ২ (কাতলা)', area: 15, fish_type: 'কাতলা', total_weight: 850, total_count: 1500, avg_weight: 566 },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', area: 30, fish_type: 'পাঙ্গাস', total_weight: 2500, total_count: 5000, avg_weight: 500 },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', area: 10, fish_type: 'তেলাপিয়া', total_weight: 400, total_count: 2000, avg_weight: 200 },
+        { id: '5', name: 'পুকুর ৫ (কার্প)', area: 25, fish_type: 'কার্প', total_weight: 1500, total_count: 3000, avg_weight: 500 }
       ]);
       setLoading(false);
       return;

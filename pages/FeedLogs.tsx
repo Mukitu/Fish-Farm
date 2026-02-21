@@ -23,6 +23,27 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [recommendation, setRecommendation] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (user.id === 'guest-id') {
+      const demoPonds = [
+        { id: '1', name: 'পুকুর ১ (রুই)' }, 
+        { id: '2', name: 'পুকুর ২ (কাতলা)' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)' }
+      ];
+      setPonds(demoPonds);
+      setInventory([
+        { id: 'i1', name: 'নারিশ ফিড (গ্রোয়ার)', quantity: 450, unit: 'কেজি', type: 'খাবার' },
+        { id: 'i2', name: 'মেগা ফিড (স্টার্টার)', quantity: 80, unit: 'কেজি', type: 'খাবার' }
+      ] as any);
+      setLogs([
+        { id: 'l1', date: new Date().toISOString(), time: 'সকাল', amount: 25, bags: 0.5, ponds: { name: 'পুকুর ১ (রুই)' }, inventory: { name: 'নারিশ ফিড (গ্রোয়ার)' } },
+        { id: 'l2', date: new Date().toISOString(), time: 'বিকাল', amount: 30, bags: 0.6, ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, inventory: { name: 'মেগা ফিড (স্টার্টার)' } },
+        { id: 'l3', date: new Date().toISOString(), time: 'সকাল', amount: 15, bags: 0.3, ponds: { name: 'পুকুর ২ (কাতলা)' }, inventory: { name: 'নারিশ ফিড (গ্রোয়ার)' } }
+      ]);
+      setLoading(false);
+      return;
+    }
     if (!user?.id) return;
     setLoading(true);
     try {
@@ -111,6 +132,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     const applyAmount = parseFloat(newLog.amount);
     const applyBags = parseFloat(newLog.bags || '0');
 

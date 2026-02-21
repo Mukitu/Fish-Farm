@@ -14,6 +14,22 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setPonds([
+        { id: '1', name: 'পুকুর ১ (রুই)' }, 
+        { id: '2', name: 'পুকুর ২ (কাতলা)' },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)' },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)' },
+        { id: '5', name: 'পুকুর ৫ (কার্প)' }
+      ] as any);
+      setRecords([
+        { id: 'g1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, sample_count: 5, avg_weight_gm: 480 },
+        { id: 'g2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, sample_count: 4, avg_weight_gm: 560 },
+        { id: 'g3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, sample_count: 10, avg_weight_gm: 500 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: pData } = await supabase.from('ponds').select('*').eq('user_id', user.id);
@@ -28,6 +44,7 @@ const GrowthRecordsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleAdd = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
     if (!newRec.pond_id || !newRec.avg_weight_gm) {
       alert("⚠️ পুকুর এবং মাছের গড় ওজন দিন!");
       return;
