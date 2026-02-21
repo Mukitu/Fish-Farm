@@ -129,6 +129,14 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setStats({ totalExp: 15000, totalSale: 45000, totalPonds: 3 });
+      setPonds([
+        { id: '1', name: 'পুকুর ১', area: 20, fish_type: 'রুই', stock_date: '2024-01-01', is_active: true, user_id: 'guest' },
+        { id: '2', name: 'পুকুর ২', area: 15, fish_type: 'কাতলা', stock_date: '2024-01-05', is_active: true, user_id: 'guest' }
+      ] as any);
+      return;
+    }
     try {
       const { data: exp } = await supabase.from('expenses').select('amount').eq('user_id', user.id);
       const { data: sale } = await supabase.from('sales').select('amount').eq('user_id', user.id);

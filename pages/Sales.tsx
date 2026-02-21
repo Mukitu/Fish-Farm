@@ -15,6 +15,15 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setPonds([{ id: '1', name: 'পুকুর ১' }, { id: '2', name: 'পুকুর ২' }] as any);
+      setSales([
+        { id: 's1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১' }, weight_kg: 100, amount: 25000 },
+        { id: 's2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২' }, weight_kg: 80, amount: 20000 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: pondData } = await supabase.from('ponds').select('*').eq('user_id', user.id);

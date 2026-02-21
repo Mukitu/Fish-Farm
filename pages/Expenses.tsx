@@ -13,6 +13,15 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
+    if (user.id === 'guest-id') {
+      setPonds([{ id: '1', name: 'পুকুর ১' }, { id: '2', name: 'পুকুর ২' }] as any);
+      setExpenses([
+        { id: 'e1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১' }, item_name: 'মাছের খাবার', amount: 5000 },
+        { id: 'e2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২' }, item_name: 'ঔষধ', amount: 2000 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: p } = await supabase.from('ponds').select('*').eq('user_id', user.id);

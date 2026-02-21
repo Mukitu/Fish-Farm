@@ -26,6 +26,14 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const fetchPonds = async () => {
+    if (user.id === 'guest-id') {
+      setPonds([
+        { id: '1', name: 'পুকুর ১', area: 20, fish_type: 'রুই', total_weight: 500, total_count: 1200, avg_weight: 416 },
+        { id: '2', name: 'পুকুর ২', area: 15, fish_type: 'কাতলা', total_weight: 300, total_count: 800, avg_weight: 375 }
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
