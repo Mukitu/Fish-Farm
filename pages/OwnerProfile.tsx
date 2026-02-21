@@ -23,7 +23,7 @@ const OwnerProfile: React.FC = () => {
         <div className="relative inline-block mb-10">
           <div className="absolute inset-0 bg-blue-600 rounded-[3rem] rotate-6 -z-10 opacity-10"></div>
           <img 
-            src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop" 
+            src="https://scontent.fdac177-1.fna.fbcdn.net/v/t39.30808-6/608555197_1420424023055766_6960166380452882439_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=1d70fc&_nc_ohc=VDtI5LzDCkwQ7kNvwGorRgu&_nc_oc=AdlVk0i3DqZ7fdTTT3DmvG-BGSt95pB512_3tTB4BJfpdVmU9SUjD-cu6pjI94C9c84&_nc_zt=23&_nc_ht=scontent.fdac177-1.fna&_nc_gid=3yuVY-tGjNGqX9sp1FAnKA&oh=00_Aftmb1dQk15CWbBR4kWVlA9ViBDFZZOe-Y355HqKNMHDyg&oe=699F25C0" 
             alt="Owner" 
             className="w-48 h-48 md:w-64 md:h-64 rounded-[3rem] border-8 border-white shadow-2xl object-cover"
           />
