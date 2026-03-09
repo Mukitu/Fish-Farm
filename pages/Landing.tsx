@@ -75,7 +75,8 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
           <div className="flex items-center gap-3">
             <button onClick={handleDemo} className="hidden sm:block px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-xs border border-emerald-100 hover:bg-emerald-100 transition-all">ডেমো</button>
             <Link to="/login" className="hidden sm:block text-slate-600 font-bold text-sm px-4">লগইন</Link>
-            <Link to="/register" className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">শুরু করুন</Link>
+            <Link to="/register" className="hidden sm:block px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">শুরু করুন</Link>
+            <Link to="/login" className="sm:hidden px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">লগইন করুন</Link>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-slate-800 bg-slate-100 rounded-lg transition-transform active:scale-90">
               {isMenuOpen ? '✕' : '☰'}
             </button>
