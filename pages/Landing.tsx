@@ -14,6 +14,13 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard');
+      }
+    });
+
     // Fetch dynamic plans
     const fetchPlans = async () => {
       const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
