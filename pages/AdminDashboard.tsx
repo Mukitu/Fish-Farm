@@ -170,7 +170,7 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
       <div className="max-w-6xl mx-auto p-6 md:p-12">
         <div className="flex flex-wrap gap-2 mb-10 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
            <TabButton label="পেন্ডিং পেমেন্ট" active={activeTab === 'pending'} onClick={() => setActiveTab('pending')} count={payments.length} />
-           <TabButton label="ইউজার তালিকা" active={activeTab === 'users'} onClick={() => setActiveTab('users')} />
+           <TabButton label="ইউজার তালিকা" active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon="👥" />
            <TabButton label="আর্থিক রিপোর্ট" active={activeTab === 'revenue'} onClick={() => setActiveTab('revenue')} />
            <TabButton label="প্রাইসিং" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
            <TabButton label="কুপন" active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} />
@@ -475,11 +475,12 @@ const AdminDashboard: React.FC<{ user: UserProfile, onLogout: any }> = ({ user, 
   );
 };
 
-const TabButton: React.FC<{ label: string; active: boolean; onClick: () => void; count?: number }> = ({ label, active, onClick, count }) => (
+const TabButton: React.FC<{ label: string; active: boolean; onClick: () => void; count?: number; icon?: string }> = ({ label, active, onClick, count, icon }) => (
   <button 
     onClick={onClick}
     className={`flex-1 py-4 px-6 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}
   >
+    {icon && <span className="text-lg">{icon}</span>}
     {label}
     {count !== undefined && count > 0 && (
       <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${active ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'}`}>

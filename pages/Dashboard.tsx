@@ -114,6 +114,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </header>
 
+        {/* Mobile Horizontal Nav */}
+        <div className="lg:hidden bg-white border-b border-slate-100 overflow-x-auto whitespace-nowrap p-2">
+          <div className="flex gap-2">
+            {navItems.map(item => (
+              <Link 
+                key={item.path}
+                to={item.path}
+                className={`px-4 py-2 rounded-xl font-black text-sm transition-all flex items-center gap-2 ${location.pathname === item.path ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                <span className="text-lg">{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
         <main className="p-6 md:p-12 max-w-[1600px] mx-auto w-full">
           <Outlet />
         </main>
