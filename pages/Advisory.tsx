@@ -53,6 +53,18 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         body: JSON.stringify({ prompt }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Server Response Error:", errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          setAiGuide(`সার্ভার ত্রুটি: ${errorJson.error || response.statusText}`);
+        } catch {
+          setAiGuide(`সার্ভার ত্রুটি (${response.status}): ${response.statusText}`);
+        }
+        return;
+      }
+
       const data = await response.json();
       
       if (data.choices?.[0]?.message?.content) {
@@ -67,7 +79,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       }
     } catch (error) {
       console.error("Groq Fetch Error:", error);
-      setAiGuide('সার্ভার সংযোগে সমস্যা হয়েছে। দয়া করে পরে চেষ্টা করুন।');
+      setAiGuide('সার্ভার সংযোগে সমস্যা হয়েছে। দয়া করে আপনার ইন্টারনেট কানেকশন চেক করুন।');
     } finally {
       setAiLoading(false);
     }
