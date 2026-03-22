@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
-import { Info, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Info, TrendingUp, ShieldCheck, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
@@ -12,6 +12,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [plannerForm, setPlannerForm] = useState({ area: user.max_ponds > 0 ? '' : '0', depth: '4', months: '4' });
   const [planResult, setPlanResult] = useState<any | null>(null);
+  const [activeMonthTab, setActiveMonthTab] = useState(1);
 
   useEffect(() => {
     calculatePlan();
@@ -125,6 +126,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     };
 
     setPlanResult(results);
+    setActiveMonthTab(1);
   };
 
   const fetchData = useCallback(async () => {
@@ -327,7 +329,62 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
             {/* Planner Results (if active) */}
             {planResult && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="lg:col-span-3 space-y-8 mt-8 pt-8 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                
+                {/* Monthly Schedule Section */}
+                <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <Calendar className="text-blue-600 w-5 h-5" />
+                    মাসিক পরিচর্যা ও প্রয়োগ মাত্রা
+                  </h4>
+                  
+                  {/* Tabs */}
+                  <div className="flex overflow-x-auto gap-2 pb-4 no-scrollbar mb-4">
+                    {planResult.monthlySchedule.map((m: any) => (
+                      <button
+                        key={m.month}
+                        onClick={() => setActiveMonthTab(m.month)}
+                        className={`whitespace-nowrap px-6 py-3 rounded-2xl font-black text-sm transition-all ${
+                          activeMonthTab === m.month
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                        }`}
+                      >
+                        মাস {m.month}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab Content */}
+                  {planResult.monthlySchedule.filter((m: any) => m.month === activeMonthTab).map((m: any) => (
+                    <div key={m.month} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
+                      <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">খাবার (Feed)</p>
+                        <p className="text-xl font-black text-slate-800">{m.feed} কেজি</p>
+                        <p className="text-[10px] text-slate-400 font-bold mt-1">এই মাসের মোট খাবার</p>
+                      </div>
+                      <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">সার (Fertilizer)</p>
+                        <p className="text-xl font-black text-slate-800">{m.fertilizer.urea}g / {m.fertilizer.tsp}g</p>
+                        <p className="text-[10px] text-slate-400 font-bold mt-1">ইউরিয়া / টিএসপি</p>
+                      </div>
+                      <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">চুন ও লবণ</p>
+                        <p className="text-xl font-black text-slate-800">{m.lime} / {m.salt} কেজি</p>
+                        <p className="text-[10px] text-slate-400 font-bold mt-1">চুন / লবণ</p>
+                      </div>
+                      <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">জীবাণুনাশক</p>
+                        <p className="text-sm font-black text-slate-800 mt-1">{m.medicine}</p>
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-4 bg-blue-50 p-5 rounded-3xl border border-blue-100 mt-2">
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">প্রধান কাজ</p>
+                        <p className="text-sm font-black text-slate-800">{m.task}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">চুন (Lime)</p>
