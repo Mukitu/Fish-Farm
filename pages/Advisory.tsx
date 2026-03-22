@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
-import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck, Sparkles, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
@@ -15,6 +16,49 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [plannerForm, setPlannerForm] = useState({ area: user.max_ponds > 0 ? '' : '0', depth: '4', months: '4' });
   const [planResult, setPlanResult] = useState<any | null>(null);
+  const [aiGuide, setAiGuide] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const getAiGuide = async (pond: any, stock: any[]) => {
+    if (!pond) return;
+    setAiLoading(true);
+    setAiGuide('');
+    
+    const prompt = `পুকুরের নাম: ${pond.name}
+আয়তন: ${pond.area} শতাংশ
+গভীরতা: ${plannerForm.depth} ফুট
+চাষের সময়কাল: ${plannerForm.months} মাস
+মাছের প্রজাতি: ${stock.map(s => `${s.species} (${s.count} টি, গড় সাইজ ${s.avg_size_inch} ইঞ্চি)`).join(', ')}
+
+উপরের তথ্যের ভিত্তিতে একটি বিস্তারিত চাষ গাইড তৈরি করে দিন। এই তথ্যগুলো উইকিপিডিয়া (Wikipedia), বাংলাদেশ মৎস্য গবেষণা ইনস্টিটিউট (BFRI) এবং অন্যান্য বিশ্বস্ত মৎস্য বিজ্ঞান সাময়িকী থেকে সংগ্রহ করা তথ্যের আলোকে তৈরি করুন। 
+
+গাইডটিতে নিচের বিষয়গুলো অবশ্যই থাকতে হবে:
+১. মাছের প্রজাতির বৈশিষ্ট্য ও চাষ পদ্ধতি।
+২. পানির গুণমান (pH, অ্যামোনিয়া, অক্সিজেন) বজায় রাখার সঠিক উপায়।
+৩. আধুনিক ও বৈজ্ঞানিক খাবার প্রয়োগের নিয়ম।
+৪. সাধারণ রোগবালাই এবং উইকিপিডিয়া ও বিএফআরআই অনুমোদিত প্রতিকার।
+৫. চাষের প্রতিটি মাসের জন্য একটি সংক্ষিপ্ত চেকলিস্ট।
+
+উত্তরটি বাংলায় এবং সুন্দরভাবে Markdown ফরম্যাটে দিন।`;
+
+    try {
+      const response = await fetch('/api/groq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json();
+      if (data.choices?.[0]?.message?.content) {
+        setAiGuide(data.choices[0].message.content);
+      } else {
+        setAiGuide('দুঃখিত, এআই পরামর্শ পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      }
+    } catch (error) {
+      setAiGuide('সার্ভার ত্রুটি। দয়া করে পরে চেষ্টা করুন।');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const calculatePlan = () => {
     const area = parseFloat(plannerForm.area || selectedPond?.area || '0');
@@ -92,7 +136,8 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         const initialPond = pondData[0];
         setSelectedPond(initialPond);
         setPlannerForm(prev => ({ ...prev, area: initialPond.area.toString() }));
-        await fetchPondStockAndGuides(initialPond, guidesData || []);
+        const stock = await fetchPondStockAndGuides(initialPond, guidesData || []);
+        getAiGuide(initialPond, stock);
       }
     } catch (e) {
       console.error("Fetch Data Error:", e);
@@ -108,10 +153,11 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         .select('*')
         .eq('pond_id', pond.id);
       
-      setPondStock(stockData || []);
+      const currentStock = stockData || [];
+      setPondStock(currentStock);
 
-      if (stockData && stockData.length > 0) {
-        const uniqueSpecies = Array.from(new Set(stockData.map(s => s.species)));
+      if (currentStock.length > 0) {
+        const uniqueSpecies = Array.from(new Set(currentStock.map(s => s.species)));
         const matchedGuides = guides.filter(g => 
           uniqueSpecies.some(s => 
             g.species_name.toLowerCase().includes(s.toLowerCase()) || 
@@ -138,8 +184,10 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         setActiveGuides([]);
         setTimeline([]);
       }
+      return currentStock;
     } catch (e) {
       console.error("Stock/Guide Fetch Error:", e);
+      return [];
     }
   };
 
@@ -159,12 +207,13 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     fetchData();
   }, [fetchData]);
 
-  const handlePondChange = (id: string) => {
+  const handlePondChange = async (id: string) => {
     const p = ponds.find(x => x.id === id);
     if (p) {
       setSelectedPond(p);
       setPlannerForm(prev => ({ ...prev, area: p.area.toString() }));
-      fetchPondStockAndGuides(p, allGuides);
+      const stock = await fetchPondStockAndGuides(p, allGuides);
+      getAiGuide(p, stock);
     }
   };
 
@@ -263,10 +312,12 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   </select>
                 </div>
                 <button 
-                  onClick={calculatePlan}
-                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                  onClick={() => getAiGuide(selectedPond, pondStock)}
+                  disabled={aiLoading}
+                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  রিপোর্ট আপডেট করুন
+                  {aiLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                  এআই গাইড আপডেট করুন
                 </button>
               </div>
             </div>
@@ -316,108 +367,48 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               </div>
             </div>
 
-            {/* Timeline Selector */}
-            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 overflow-x-auto no-scrollbar">
+            {/* Timeline Selector - Hidden as AI Guide is primary */}
+            <div className="hidden">
               <div className="flex gap-3 min-w-max">
-                {[...Array(parseInt(plannerForm.months))].map((_, i) => {
-                  const month = i + 1;
-                  return (
-                    <button
-                      key={month}
-                      onClick={() => setActiveMonth(month)}
-                      className={`px-5 py-3 rounded-xl font-black text-xs transition-all flex flex-col items-center gap-1 ${
-                        activeMonth === month 
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-105' 
-                          : 'bg-white text-slate-400 hover:bg-slate-100'
-                      }`}
-                    >
-                      <span className="text-[8px] opacity-70 uppercase">মাস</span>
-                      <span className="text-sm">{month}</span>
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={() => getAiGuide(selectedPond, pondStock)}
+                  disabled={aiLoading}
+                  className={`px-5 py-3 rounded-xl font-black text-xs transition-all flex flex-col items-center gap-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-200 scale-105 disabled:opacity-50`}
+                >
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  <span className="text-sm">এআই গাইড</span>
+                </button>
               </div>
             </div>
 
             {/* Main Content Area */}
             <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm min-h-[400px]">
-              <div className="space-y-8">
-                <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
-                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                    <Calendar className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-800">সম্মিলিত চাষ গাইড</h2>
-                    <p className="text-slate-400 font-bold text-sm">
-                      {activeGuides.length > 0 ? activeGuides.map(g => g.species_name).join(', ') : 'কার্প মিশ্র চাষ (রুই, কাতলা, মৃগেল)'} এর জন্য সমন্বিত পরামর্শ
-                    </p>
-                  </div>
+              {aiLoading ? (
+                <div className="flex flex-col items-center justify-center h-full py-20 gap-4">
+                  <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="font-black text-purple-600">উইকিপিডিয়া ও বিএফআরআই থেকে তথ্য সংগ্রহ করা হচ্ছে...</p>
                 </div>
-
-                {/* Combined Tasks from Planner and DB */}
-                <div className="space-y-6">
-                  {/* Planner Task for Active Month */}
-                  {planResult && planResult.monthlySchedule[activeMonth - 1] && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6">
-                      <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100">
-                        <div className="flex items-center gap-2 mb-3 text-blue-600">
-                          <Droplets className="w-4 h-4" />
-                          <h4 className="text-[10px] font-black uppercase tracking-widest">মাস {activeMonth} - প্রধান কাজ</h4>
-                        </div>
-                        <h3 className="text-xl font-black text-slate-800 mb-3">{planResult.monthlySchedule[activeMonth - 1].task}</h3>
-                        <div className="space-y-2 text-sm font-bold text-slate-600">
-                          <p>• চুন: {planResult.monthlySchedule[activeMonth - 1].lime} কেজি</p>
-                          <p>• খাবার: {planResult.monthlySchedule[activeMonth - 1].feed} কেজি (মাসিক)</p>
-                          <p>• সার: ইউরিয়া {planResult.monthlySchedule[activeMonth - 1].fertilizer.urea} গ্রাম, টিএসপি {planResult.monthlySchedule[activeMonth - 1].fertilizer.tsp} গ্রাম</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
-                        <div className="flex items-center gap-2 mb-3 text-rose-600">
-                          <ShieldCheck className="w-4 h-4" />
-                          <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
-                        </div>
-                        <p className="text-rose-900 font-black text-base leading-relaxed">
-                          {planResult.monthlySchedule[activeMonth - 1].medicine}
-                        </p>
-                      </div>
+              ) : aiGuide ? (
+                <div className="advisory-content prose prose-slate max-w-none animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-8">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                      <Sparkles className="w-6 h-6" />
                     </div>
-                  )}
-
-                  {/* Database Timeline Items for Active Month */}
-                  {currentTimelineItems.length > 0 ? (
-                    currentTimelineItems.map((item, idx) => (
-                      <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-slate-50 pb-6 last:border-0">
-                        <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                          <div className="flex items-center gap-2 mb-3 text-blue-600">
-                            <Droplets className="w-4 h-4" />
-                            <h4 className="text-[10px] font-black uppercase tracking-widest">
-                              {activeGuides.find(g => g.id === item.guide_id)?.species_name} - অতিরিক্ত কাজ
-                            </h4>
-                          </div>
-                          <h3 className="text-xl font-black text-slate-800 mb-3">{item.task_title}</h3>
-                          <p className="text-slate-600 font-bold text-sm leading-relaxed">{item.task_description}</p>
-                        </div>
-
-                        <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
-                          <div className="flex items-center gap-2 mb-3 text-rose-600">
-                            <ShieldCheck className="w-4 h-4" />
-                            <h4 className="text-[10px] font-black uppercase tracking-widest">ওষুধ ও ব্যবস্থাপনা</h4>
-                          </div>
-                          <p className="text-rose-900 font-black text-base leading-relaxed">
-                            {item.medicine_suggestions || 'কোন নির্দিষ্ট ওষুধ প্রয়োজন নেই।'}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : !planResult && (
-                    <div className="text-center py-20">
-                      <p className="text-slate-400 font-bold">এই মাসের জন্য কোন নির্দিষ্ট কাজ পাওয়া যায়নি। পরিকল্পনা তৈরি করুন।</p>
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-800 m-0 border-none p-0">এআই স্মার্ট গাইড (Trusted)</h2>
+                      <p className="text-slate-400 font-bold text-sm">উৎস: Wikipedia, BFRI ও মৎস্য বিজ্ঞান</p>
                     </div>
-                  )}
+                  </div>
+                  <ReactMarkdown>{aiGuide}</ReactMarkdown>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-20 text-center">
+                  <Info className="w-12 h-12 text-slate-200 mb-4" />
+                  <p className="text-slate-400 font-bold">গাইড লোড করতে পুকুর সিলেক্ট করুন অথবা আপডেট বাটনে ক্লিক করুন।</p>
+                </div>
+              )}
             </div>
+          </div>
 
             {/* Planner Results (if active) */}
             {planResult && (
@@ -463,17 +454,16 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             )}
           </div>
         </div>
-      </div>
 
-      <style>{`
-        .advisory-content h2 { font-weight: 900; color: #1e293b; font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid #2563eb; padding-left: 1rem; }
-        .advisory-content h3 { font-weight: 800; color: #334155; font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
-        .advisory-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        .advisory-content li { margin-bottom: 0.5rem; color: #475569; }
-        .advisory-content strong { color: #2563eb; font-weight: 900; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
+        <style>{`
+          .advisory-content h2 { font-weight: 900; color: #1e293b; font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid #2563eb; padding-left: 1rem; }
+          .advisory-content h3 { font-weight: 800; color: #334155; font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+          .advisory-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; }
+          .advisory-content li { margin-bottom: 0.5rem; color: #475569; }
+          .advisory-content strong { color: #2563eb; font-weight: 900; }
+          .no-scrollbar::-webkit-scrollbar { display: none; }
+          .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        `}</style>
     </div>
   );
 };

@@ -20,7 +20,7 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     time: 'সকাল' 
   });
 
-  const [recommendation, setRecommendation] = useState<number | null>(null);
+  const [recommendation, setRecommendation] = useState<{ min: number; max: number } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (user.id === 'guest-id') {
@@ -120,8 +120,12 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         
         if (totalCount > 0 && latestWeight > 0) {
           const biomassKg = (totalCount * latestWeight) / 1000;
-          const recAmount = biomassKg * 0.03;
-          setRecommendation(parseFloat(recAmount.toFixed(2)));
+          const recMin = biomassKg * 0.025;
+          const recMax = biomassKg * 0.03;
+          setRecommendation({ 
+            min: parseFloat(recMin.toFixed(2)), 
+            max: parseFloat(recMax.toFixed(2)) 
+          });
         } else {
           setRecommendation(null);
         }
@@ -284,14 +288,22 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
               {recommendation !== null && (
                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 animate-in slide-in-from-top-2">
-                   <p className="text-xs font-black text-blue-600 uppercase mb-1">এআই পরামর্শ (৩%)</p>
-                   <p className="text-xl font-black text-blue-800">প্রায় {recommendation} কেজি</p>
-                   <button 
-                     onClick={() => setNewLog(prev => ({ ...prev, amount: recommendation.toString() }))}
-                     className="text-[10px] font-black text-blue-500 underline mt-1 hover:text-blue-700"
-                   >
-                     অটো ফিল (কেজি)
-                   </button>
+                   <p className="text-xs font-black text-blue-600 uppercase mb-1">এআই পরামর্শ (২.৫% - ৩%)</p>
+                   <p className="text-xl font-black text-blue-800">{recommendation.min} - {recommendation.max} কেজি</p>
+                   <div className="flex gap-3 mt-2">
+                     <button 
+                       onClick={() => setNewLog(prev => ({ ...prev, amount: recommendation.min.toString() }))}
+                       className="text-[10px] font-black text-blue-500 underline hover:text-blue-700"
+                     >
+                       ২.৫% ফিল
+                     </button>
+                     <button 
+                       onClick={() => setNewLog(prev => ({ ...prev, amount: recommendation.max.toString() }))}
+                       className="text-[10px] font-black text-blue-500 underline hover:text-blue-700"
+                     >
+                       ৩% ফিল
+                     </button>
+                   </div>
                 </div>
               )}
 
