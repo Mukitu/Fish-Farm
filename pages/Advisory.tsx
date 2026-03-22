@@ -303,33 +303,9 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm min-h-[400px]">
-              {planResult?.staticGuide ? (
-                <div className="advisory-content prose prose-slate max-w-none animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-8">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                      <ShieldCheck className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-800 m-0 border-none p-0">স্মার্ট চাষ গাইড (Trusted)</h2>
-                      <p className="text-slate-400 font-bold text-sm">উৎস: Wikipedia, BFRI ও মৎস্য বিজ্ঞান</p>
-                    </div>
-                  </div>
-                  <ReactMarkdown>{planResult.staticGuide}</ReactMarkdown>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full py-20 text-center">
-                  <Info className="w-12 h-12 text-slate-200 mb-4" />
-                  <p className="text-slate-400 font-bold">গাইড লোড করতে পুকুর সিলেক্ট করুন অথবা আয়তন দিন।</p>
-                </div>
-              )}
-            </div>
-          </div>
-
             {/* Planner Results (if active) */}
-            {planResult && (
-              <div className="lg:col-span-3 space-y-8 mt-8 pt-8 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {planResult ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
                 {/* Monthly Schedule Section */}
                 <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
@@ -423,8 +399,33 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   </p>
                 </div>
               </div>
+            ) : (
+              <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm min-h-[400px] flex flex-col items-center justify-center text-center">
+                <Info className="w-12 h-12 text-slate-200 mb-4" />
+                <p className="text-slate-400 font-bold">গাইড লোড করতে পুকুর সিলেক্ট করুন অথবা আয়তন দিন।</p>
+              </div>
             )}
           </div>
+
+          {/* Main Content Area (Static Guide) */}
+          {planResult?.staticGuide && (
+            <div className="lg:col-span-3 mt-8 pt-8 border-t border-slate-100">
+              <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm">
+                <div className="advisory-content prose prose-slate max-w-none animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-8">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-800 m-0 border-none p-0">স্মার্ট চাষ গাইড (Trusted)</h2>
+                      <p className="text-slate-400 font-bold text-sm">উৎস: Wikipedia, BFRI ও মৎস্য বিজ্ঞান</p>
+                    </div>
+                  </div>
+                  <ReactMarkdown>{planResult.staticGuide}</ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <style>{`
@@ -436,6 +437,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           .no-scrollbar::-webkit-scrollbar { display: none; }
           .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         `}</style>
+      </div>
     </div>
   );
 };
