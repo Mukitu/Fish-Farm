@@ -5,6 +5,8 @@ import { UserProfile } from '../types';
 import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+import { GoogleGenAI } from "@google/genai";
+
 const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
   const [allGuides, setAllGuides] = useState<any[]>([]);
@@ -20,15 +22,20 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [aiLoading, setAiLoading] = useState(false);
 
   const getAiGuide = async (pond: any, stock: any[]) => {
-    if (!pond) return;
     setAiLoading(true);
     setAiGuide('');
     
-    const prompt = `পুকুরের নাম: ${pond.name}
-আয়তন: ${pond.area} শতাংশ
+    const area = plannerForm.area || pond?.area || '0';
+    const name = pond?.name || 'নতুন পুকুর';
+    const speciesInfo = stock.length > 0 
+      ? stock.map(s => `${s.species} (${s.count} টি, গড় সাইজ ${s.avg_size_inch} ইঞ্চি)`).join(', ')
+      : 'এখনো মাছ মজুদ করা হয়নি';
+
+    const prompt = `পুকুরের নাম: ${name}
+আয়তন: ${area} শতাংশ
 গভীরতা: ${plannerForm.depth} ফুট
 চাষের সময়কাল: ${plannerForm.months} মাস
-মাছের প্রজাতি: ${stock.map(s => `${s.species} (${s.count} টি, গড় সাইজ ${s.avg_size_inch} ইঞ্চি)`).join(', ')}
+মাছের প্রজাতি: ${speciesInfo}
 
 উপরের তথ্যের ভিত্তিতে একটি বিস্তারিত চাষ গাইড তৈরি করে দিন। এই তথ্যগুলো উইকিপিডিয়া (Wikipedia), বাংলাদেশ মৎস্য গবেষণা ইনস্টিটিউট (BFRI) এবং অন্যান্য বিশ্বস্ত মৎস্য বিজ্ঞান সাময়িকী থেকে সংগ্রহ করা তথ্যের আলোকে তৈরি করুন। 
 
@@ -42,30 +49,38 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 উত্তরটি বাংলায় এবং সুন্দরভাবে Markdown ফরম্যাটে দিন।`;
 
     try {
-      const response = await fetch('/api/groq', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.0-flash-exp",
+        contents: [{ parts: [{ text: prompt }] }],
       });
-      const data = await response.json();
-      if (data.choices?.[0]?.message?.content) {
-        setAiGuide(data.choices[0].message.content);
+      
+      if (response.text) {
+        setAiGuide(response.text);
       } else {
         setAiGuide('দুঃখিত, এআই পরামর্শ পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
       }
     } catch (error) {
-      setAiGuide('সার্ভার ত্রুটি। দয়া করে পরে চেষ্টা করুন।');
+      console.error("Gemini Error:", error);
+      setAiGuide('এআই সার্ভিস লোড করতে সমস্যা হয়েছে। দয়া করে আপনার ইন্টারনেট কানেকশন চেক করুন।');
     } finally {
       setAiLoading(false);
     }
   };
 
+  useEffect(() => {
+    calculatePlan();
+  }, [plannerForm, selectedPond]);
+
   const calculatePlan = () => {
-    const area = parseFloat(plannerForm.area || selectedPond?.area || '0');
+    const areaVal = parseFloat(plannerForm.area || selectedPond?.area?.toString() || '0');
     const depth = parseFloat(plannerForm.depth || '4');
     const months = parseInt(plannerForm.months || '4');
 
-    if (area <= 0) return alert('পুকুরের আয়তন দিন');
+    if (areaVal <= 0) {
+      setPlanResult(null);
+      return;
+    }
 
     // Logic for calculations (Approximate standard values for BD fish farming)
     const intensity = months <= 3 ? 1.5 : months <= 4 ? 1.2 : 1.0;
@@ -74,16 +89,16 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     let totalFeed = 0;
     
     for (let i = 1; i <= months; i++) {
-      const monthlyFeed = area * (8 + (i * 3)) * intensity; // Feed increases as fish grow
+      const monthlyFeed = areaVal * (8 + (i * 3)) * intensity; // Feed increases as fish grow
       totalFeed += monthlyFeed;
       
       monthlySchedule.push({
         month: i,
-        lime: i === 1 ? (area * 1).toFixed(1) : (area * 0.2).toFixed(1),
-        salt: i === 1 ? (area * 0.5).toFixed(1) : (i % 3 === 0 ? (area * 0.2).toFixed(1) : '0'),
+        lime: i === 1 ? (areaVal * 1).toFixed(1) : (areaVal * 0.2).toFixed(1),
+        salt: i === 1 ? (areaVal * 0.5).toFixed(1) : (i % 3 === 0 ? (areaVal * 0.2).toFixed(1) : '0'),
         fertilizer: {
-          urea: Math.round(area * 100 * intensity),
-          tsp: Math.round(area * 50 * intensity)
+          urea: Math.round(areaVal * 100 * intensity),
+          tsp: Math.round(areaVal * 50 * intensity)
         },
         feed: Math.round(monthlyFeed),
         task: i === 1 ? "পুকুর প্রস্তুতি, চুন ও সার প্রয়োগ" : (i === months ? "মাছ আহরণ ও বাজারজাতকরণ" : "নিয়মিত পরিচর্যা ও নমুনা সংগ্রহ"),
@@ -92,12 +107,13 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
 
     const results = {
-      lime: { total: (area * 1 + (months - 1) * area * 0.2).toFixed(1), unit: 'কেজি', note: 'পুরো সিজনের মোট চুন' },
-      salt: { total: (area * 0.5 + Math.floor(months/3) * area * 0.2).toFixed(1), unit: 'কেজি', note: 'রোগ প্রতিরোধে মোট লবণ' },
-      potash: { total: Math.round(area * 10 * Math.floor(months/2)), unit: 'গ্রাম', note: 'মোট পটাশ/জীবাণুনাশক' },
+      expected_yield: Math.round(areaVal * 15),
+      lime: { total: (areaVal * 1 + (months - 1) * areaVal * 0.2).toFixed(1), unit: 'কেজি', note: 'পুরো সিজনের মোট চুন' },
+      salt: { total: (areaVal * 0.5 + Math.floor(months/3) * areaVal * 0.2).toFixed(1), unit: 'কেজি', note: 'রোগ প্রতিরোধে মোট লবণ' },
+      potash: { total: Math.round(areaVal * 10 * Math.floor(months/2)), unit: 'গ্রাম', note: 'মোট পটাশ/জীবাণুনাশক' },
       fertilizer: { 
-        urea: Math.round(area * 100 * intensity), 
-        tsp: Math.round(area * 50 * intensity), 
+        urea: Math.round(areaVal * 100 * intensity), 
+        tsp: Math.round(areaVal * 50 * intensity), 
         unit: 'গ্রাম', 
         note: 'প্রতি সপ্তাহের জন্য সার' 
       },
@@ -106,7 +122,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         unit: 'কেজি', 
         note: `পুরো ${months} মাসের আনুমানিক মোট খাবার` 
       },
-      water_volume: (area * 435.6 * depth).toLocaleString(),
+      water_volume: (areaVal * 435.6 * depth).toLocaleString(),
       monthlySchedule,
       disinfectants: [
         { name: "Timsen (টিমসেন)", usage: "১ গ্রাম/শতাংশ", note: "সবচেয়ে জনপ্রিয় ও কার্যকর জীবাণুনাশক। এটি পানিতে দ্রুত মিশে যায় এবং ক্ষতিকর ব্যাকটেরিয়া ধ্বংস করে।" },
@@ -262,7 +278,11 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             onChange={e => handlePondChange(e.target.value)} 
             className="w-full px-6 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl font-black text-white outline-none focus:ring-4 focus:ring-blue-500/50 transition-all"
           >
-            {ponds.map(p => <option key={p.id} value={p.id} className="text-slate-800">{p.name} ({p.area} শতাংশ)</option>)}
+            {ponds.length === 0 ? (
+              <option value="" className="text-slate-800">পুকুর যোগ করুন</option>
+            ) : (
+              ponds.map(p => <option key={p.id} value={p.id} className="text-slate-800">{p.name} ({p.area} শতাংশ)</option>)
+            )}
           </select>
         </div>
       </div>
@@ -341,7 +361,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">মোট আয়তন</p>
-                <p className="text-xl font-black text-slate-800">{selectedPond?.area} শতাংশ</p>
+                <p className="text-xl font-black text-slate-800">{plannerForm.area || selectedPond?.area || '0'} শতাংশ</p>
               </div>
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">মোট পোনা</p>
@@ -352,7 +372,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">টার্গেট ফলন</p>
                 <p className="text-xl font-black text-slate-800">
-                  {planResult?.expected_yield || Math.round(selectedPond?.area * 15)} কেজি
+                  {planResult?.expected_yield || Math.round(parseFloat(plannerForm.area || selectedPond?.area || '0') * 15)} কেজি
                 </p>
               </div>
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
