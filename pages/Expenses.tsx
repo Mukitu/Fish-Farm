@@ -66,31 +66,56 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <button onClick={() => setIsModalOpen(true)} className="px-6 py-4 bg-rose-600 text-white rounded-2xl font-black shadow-xl">➕ খরচ যোগ</button>
       </div>
 
-      <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest border-b">
-            <tr>
-              <th className="px-8 py-6">তারিখ</th>
-              <th className="px-8 py-6">পুকুর</th>
-              <th className="px-8 py-6">বিবরণ</th>
-              <th className="px-8 py-6 text-right">টাকা</th>
-              <th className="px-8 py-6 text-center">অ্যাকশন</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50 text-slate-700">
-            {expenses.map(exp => (
-              <tr key={exp.id} className="hover:bg-slate-50 transition">
-                <td className="px-8 py-6 text-xs font-bold">{new Date(exp.date).toLocaleDateString('bn-BD')}</td>
-                <td className="px-8 py-6 font-black text-slate-800">{exp.ponds?.name || 'অজানা'}</td>
-                <td className="px-8 py-6">{exp.item_name}</td>
-                <td className="px-8 py-6 text-right font-black text-rose-600">৳ {exp.amount}</td>
-                <td className="px-8 py-6 text-center">
-                   <button onClick={async () => {if(confirm('মুছবেন?')) {await supabase.from('expenses').delete().eq('id', exp.id); fetchData();}}} className="text-rose-300">🗑️</button>
-                </td>
+      <div className="bg-white md:rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm rounded-[2rem]">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest border-b">
+              <tr>
+                <th className="px-8 py-6">তারিখ</th>
+                <th className="px-8 py-6">পুকুর</th>
+                <th className="px-8 py-6">বিবরণ</th>
+                <th className="px-8 py-6 text-right">টাকা</th>
+                <th className="px-8 py-6 text-center">অ্যাকশন</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-slate-700">
+              {expenses.map(exp => (
+                <tr key={exp.id} className="hover:bg-slate-50 transition">
+                  <td className="px-8 py-6 text-xs font-bold">{new Date(exp.date).toLocaleDateString('bn-BD')}</td>
+                  <td className="px-8 py-6 font-black text-slate-800">{exp.ponds?.name || 'অজানা'}</td>
+                  <td className="px-8 py-6">{exp.item_name}</td>
+                  <td className="px-8 py-6 text-right font-black text-rose-600">৳ {exp.amount}</td>
+                  <td className="px-8 py-6 text-center">
+                     <button onClick={async () => {if(confirm('মুছবেন?')) {await supabase.from('expenses').delete().eq('id', exp.id); fetchData();}}} className="text-rose-300 hover:text-rose-500 transition-colors">🗑️</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-slate-50">
+          {expenses.map(exp => (
+            <div key={exp.id} className="p-6 space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(exp.date).toLocaleDateString('bn-BD')}</p>
+                  <h4 className="font-black text-slate-800">{exp.ponds?.name || 'অজানা'}</h4>
+                </div>
+                <button onClick={async () => {if(confirm('মুছবেন?')) {await supabase.from('expenses').delete().eq('id', exp.id); fetchData();}}} className="w-8 h-8 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center text-xs">🗑️</button>
+              </div>
+              <div className="flex justify-between items-end">
+                <p className="text-sm text-slate-500 font-bold">{exp.item_name}</p>
+                <p className="text-xl font-black text-rose-600 tracking-tighter">৳ {exp.amount}</p>
+              </div>
+            </div>
+          ))}
+          {expenses.length === 0 && (
+            <div className="p-12 text-center text-slate-400 font-bold">কোনো খরচের হিসাব পাওয়া যায়নি</div>
+          )}
+        </div>
       </div>
 
       {isModalOpen && (

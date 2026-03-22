@@ -92,8 +92,9 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-green-600 text-white rounded-[1.5rem] font-black shadow-xl hover:scale-105 transition-all">💰 বিক্রি যোগ করুন</button>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white md:rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden rounded-[2rem]">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
               <tr>
@@ -114,7 +115,7 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <td className="px-8 py-6 text-center"><span className="font-black text-slate-600 bg-slate-50 px-3 py-1 rounded-xl">{sale.weight_kg || 0} কেজি</span></td>
                   <td className="px-8 py-6 text-right font-black text-green-600">৳ {Number(sale.amount).toLocaleString()}</td>
                   <td className="px-8 py-6 text-center">
-                    <button onClick={() => handleDelete(sale.id)} className="text-rose-300 hover:text-rose-600">🗑️</button>
+                    <button onClick={() => handleDelete(sale.id)} className="text-rose-300 hover:text-rose-600 transition-colors">🗑️</button>
                   </td>
                 </tr>
               ))}
@@ -123,6 +124,30 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-slate-50">
+          {loading ? (
+            <div className="p-12 text-center font-bold">লোড হচ্ছে...</div>
+          ) : sales.map(sale => (
+            <div key={sale.id} className="p-6 space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(sale.date).toLocaleDateString('bn-BD')}</p>
+                  <h4 className="font-black text-slate-800">{sale.ponds?.name || 'অজানা'}</h4>
+                </div>
+                <button onClick={() => handleDelete(sale.id)} className="w-8 h-8 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center text-xs">🗑️</button>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-slate-500 bg-slate-50 px-3 py-1 rounded-lg">{sale.weight_kg || 0} কেজি</span>
+                <p className="text-xl font-black text-green-600 tracking-tighter">৳ {Number(sale.amount).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+          {!loading && sales.length === 0 && (
+            <div className="p-12 text-center text-slate-400 font-bold">কোনো বিক্রির রেকর্ড পাওয়া যায়নি</div>
+          )}
         </div>
       </div>
 

@@ -113,40 +113,40 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 md:space-y-8 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-black text-slate-800 tracking-tight">আমার পুকুরসমূহ</h1>
-          <p className="text-slate-500 font-bold">প্যাকেজ ব্যবহার: {ponds.length} / {user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds}</p>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">আমার পুকুরসমূহ</h1>
+          <p className="text-slate-500 font-bold text-sm md:text-base">প্যাকেজ ব্যবহার: {ponds.length} / {user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds}</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl">➕ নতুন পুকুর</button>
+        <button onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-8 py-4 bg-blue-600 text-white rounded-2xl md:rounded-3xl font-black shadow-xl shadow-blue-200 transition-transform active:scale-95">➕ নতুন পুকুর</button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {loading ? (
-          <div className="col-span-full text-center py-20 font-black animate-pulse">ডাটা লোড হচ্ছে...</div>
+          <div className="col-span-full text-center py-20 font-black animate-pulse text-slate-400">ডাটা লোড হচ্ছে...</div>
         ) : (
           ponds.map(pond => (
-            <div key={pond.id} className="bg-white rounded-[3rem] shadow-sm border border-slate-100 p-10 hover:shadow-2xl transition-all">
-              <div className="flex justify-between mb-6">
-                <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-3xl">🌊</div>
-                <button onClick={async () => {if(confirm('পুকুরটি মুছে ফেলবেন?')) {await supabase.from('ponds').delete().eq('id', pond.id); fetchPonds();}}} className="text-slate-200 hover:text-rose-500">🗑️</button>
+            <div key={pond.id} className="bg-white rounded-[2.5rem] md:rounded-[3rem] shadow-sm border border-slate-100 p-8 md:p-10 hover:shadow-2xl transition-all">
+              <div className="flex justify-between mb-4 md:mb-6">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-2xl md:text-3xl">🌊</div>
+                <button onClick={async () => {if(confirm('পুকুরটি মুছে ফেলবেন?')) {await supabase.from('ponds').delete().eq('id', pond.id); fetchPonds();}}} className="text-slate-200 hover:text-rose-500 transition-colors">🗑️</button>
               </div>
-              <h3 className="text-2xl font-black text-slate-800">{pond.name}</h3>
-              <p className="text-slate-400 font-black text-sm uppercase mb-8">{pond.area} শতাংশ | {pond.fish_type}</p>
+              <h3 className="text-xl md:text-2xl font-black text-slate-800">{pond.name}</h3>
+              <p className="text-slate-400 font-black text-[10px] md:text-sm uppercase mb-6 md:mb-8">{pond.area} শতাংশ | {pond.fish_type}</p>
               
-              <div className="bg-slate-50 p-6 rounded-[2rem] space-y-4 mb-8">
-                <div className="flex justify-between text-sm font-bold">
+              <div className="bg-slate-50 p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] space-y-3 md:space-y-4 mb-6 md:mb-8">
+                <div className="flex justify-between text-xs md:text-sm font-bold">
                   <span className="text-slate-400">মোট মাছ:</span> 
                   <span className="text-slate-800 font-black">{pond.total_count} পিস</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold">
+                <div className="flex justify-between text-xs md:text-sm font-bold">
                   <span className="text-slate-400">মোট ওজন:</span> 
                   <span className="text-blue-600 font-black">{pond.total_weight} কেজি</span>
                 </div>
               </div>
 
-              <button onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">🐟 পোনা মজুদ</button>
+              <button onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm md:text-base active:scale-95 transition-transform">🐟 পোনা মজুদ</button>
             </div>
           ))
         )}
