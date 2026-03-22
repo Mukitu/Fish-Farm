@@ -10,7 +10,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [selectedPond, setSelectedPond] = useState<any | null>(null);
   const [pondStock, setPondStock] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [plannerForm, setPlannerForm] = useState({ area: user.max_ponds > 0 ? '' : '0', depth: '4', months: '4' });
+  const [plannerForm, setPlannerForm] = useState({ area: user.max_ponds > 0 ? '' : '0', depth: '4', months: '6' });
   const [planResult, setPlanResult] = useState<any | null>(null);
   const [activeMonthTab, setActiveMonthTab] = useState(1);
 
