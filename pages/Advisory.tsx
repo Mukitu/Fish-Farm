@@ -5,8 +5,6 @@ import { UserProfile } from '../types';
 import { ChevronRight, Info, Calendar, Droplets, TrendingUp, ShieldCheck, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-import { GoogleGenAI } from "@google/genai";
-
 const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
   const [allGuides, setAllGuides] = useState<any[]>([]);
@@ -49,20 +47,27 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 উত্তরটি বাংলায় এবং সুন্দরভাবে Markdown ফরম্যাটে দিন।`;
 
     try {
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const response = await genAI.models.generateContent({
-        model: "gemini-2.0-flash-exp",
-        contents: [{ parts: [{ text: prompt }] }],
+      const response = await fetch('/api/groq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
       });
       
-      if (response.text) {
-        setAiGuide(response.text);
+      const data = await response.json();
+      
+      if (data.choices?.[0]?.message?.content) {
+        setAiGuide(data.choices[0].message.content);
+      } else if (data.error) {
+        const errorMsg = typeof data.error === 'object' 
+          ? (data.error.message || JSON.stringify(data.error)) 
+          : data.error;
+        setAiGuide(`এআই ত্রুটি: ${errorMsg}`);
       } else {
         setAiGuide('দুঃখিত, এআই পরামর্শ পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
       }
     } catch (error) {
-      console.error("Gemini Error:", error);
-      setAiGuide('এআই সার্ভিস লোড করতে সমস্যা হয়েছে। দয়া করে আপনার ইন্টারনেট কানেকশন চেক করুন।');
+      console.error("Groq Fetch Error:", error);
+      setAiGuide('সার্ভার সংযোগে সমস্যা হয়েছে। দয়া করে পরে চেষ্টা করুন।');
     } finally {
       setAiLoading(false);
     }
@@ -73,8 +78,8 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   }, [plannerForm, selectedPond]);
 
   const calculatePlan = () => {
-    const areaVal = parseFloat(plannerForm.area || selectedPond?.area?.toString() || '0');
-    const depth = parseFloat(plannerForm.depth || '4');
+    const areaVal = parseFloat(plannerForm.area || selectedPond?.area?.toString() || '0') || 0;
+    const depth = parseFloat(plannerForm.depth || '4') || 4;
     const months = parseInt(plannerForm.months || '4');
 
     if (areaVal <= 0) {
@@ -372,7 +377,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">টার্গেট ফলন</p>
                 <p className="text-xl font-black text-slate-800">
-                  {planResult?.expected_yield || Math.round(parseFloat(plannerForm.area || selectedPond?.area || '0') * 15)} কেজি
+                  {planResult?.expected_yield || Math.round((parseFloat(plannerForm.area || selectedPond?.area || '0') || 0) * 15)} কেজি
                 </p>
               </div>
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
