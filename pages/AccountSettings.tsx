@@ -12,6 +12,10 @@ const AccountSettings: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ u
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (user.id === 'guest-id') {
+      alert("ডেমো মোডে প্রোফাইল আপডেট করা যাবে না।");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from('profiles').update({
       full_name: fullName,
@@ -24,6 +28,7 @@ const AccountSettings: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ u
       alert("প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
       onUpdateUser(user.id);
     } else {
+      console.error("Profile update error:", error);
       alert("ত্রুটি: আপডেট করা যায়নি।");
     }
     setSaving(false);

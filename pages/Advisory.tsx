@@ -43,7 +43,7 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     const monthlyTsp = areaVal * 25; // 25g per decimal
     const monthlyZeolite = areaVal * 200; // 200g per decimal
 
-    const speciesNames = pondStock.length > 0 ? Array.from(new Set(pondStock.map(s => s.species))).join(', ') : 'মিশ্র চাষ';
+    const speciesNames = pondStock.length > 0 ? Array.from(new Set(pondStock.map(s => s.species))).join(', ') : 'মিশ্র';
     
     let guideMd = `### 🐟 ${speciesNames} চাষের বিস্তারিত গাইড\n\n`;
     guideMd += `**পুকুরের আয়তন:** ${areaVal} শতাংশ | **গভীরতা:** ${depth} ফুট | **চাষের সময়কাল:** ${months} মাস\n\n`;
@@ -287,11 +287,17 @@ const AdvisoryPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-125 transition-transform">📊</div>
               <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-blue-200">খামার ব্যবস্থাপনা</h3>
               <p className="text-xs font-bold leading-relaxed opacity-90">
-                আপনার পুকুরে বর্তমানে {pondStock.length > 0 ? pondStock.length : '০'} টি প্রজাতির মাছ রয়েছে। তাদের গড় সাইজ অনুযায়ী নিচের পরামর্শগুলো অনুসরণ করুন।
+                {pondStock.length > 0 
+                  ? `আপনার পুকুরে বর্তমানে ${pondStock.length} টি প্রজাতির মাছ রয়েছে। তাদের গড় সাইজ অনুযায়ী নিচের পরামর্শগুলো অনুসরণ করুন।`
+                  : 'আপনার পুকুরে বর্তমানে কোনো মাছের তথ্য নেই। সঠিক পরামর্শ পেতে পোনা মজুদের তথ্য যোগ করুন।'}
               </p>
               <div className="mt-6 pt-6 border-t border-white/10">
                 <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">পরামর্শ</p>
-                <p className="text-sm font-bold">গড় সাইজ: {pondStock.length > 0 ? (pondStock.reduce((a, b) => a + Number(b.avg_size_inch), 0) / pondStock.length).toFixed(1) : 0} ইঞ্চি</p>
+                <p className="text-sm font-bold">
+                  {pondStock.length > 0 
+                    ? `গড় সাইজ: ${(pondStock.reduce((a, b) => a + Number(b.avg_size_inch), 0) / pondStock.length).toFixed(1)} ইঞ্চি`
+                    : 'গড় সাইজ: তথ্য নেই'}
+                </p>
               </div>
             </div>
           </div>
