@@ -93,7 +93,6 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     if (!newSale.pond_id) return alert("অনুগ্রহ করে পুকুর নির্বাচন করুন!");
     if (!newSale.species) return alert("অনুগ্রহ করে মাছের ক্যাটাগরি নির্বাচন করুন!");
     if (!newSale.count_sold || parseInt(newSale.count_sold) <= 0) return alert("বিক্রিত মাছের সংখ্যা (পিস) দিন!");
-    if (!newSale.amount) return alert("বিক্রয় মূল্য প্রদান করুন!");
 
     setSaving(true);
     try {
@@ -384,7 +383,7 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মোট বিক্রয় মূল্য (৳)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মোট বিক্রয় মূল্য ৳ (ঐচ্ছিক)</label>
                 <input 
                   type="number" 
                   placeholder="উদা: ৬০০০" 
