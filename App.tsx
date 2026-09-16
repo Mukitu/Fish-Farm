@@ -43,10 +43,8 @@ const QuickLink: React.FC<{ to: string; icon: string; label: string }> = ({ to, 
 );
 
 const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
-  const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalPonds: 0 });
-  const [ponds, setPonds] = useState<Pond[]>([]);
-  const [metricForm, setMetricForm] = useState({ pond_id: '', oxygen: '', ph: '', temp: '' });
-  const [savingMetric, setSavingMetric] = useState(false);
+  const [stats, setStats] = useState({ totalExp: 0, totalSale: 0, totalPonds: 0, totalFishStock: 0, totalFishSold: 0 });
+  const [pondsSummary, setPondsSummary] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -55,56 +53,52 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchData = async () => {
     if (!user) return;
     if (user.id === 'guest-id') {
-      setStats({ totalExp: 45600, totalSale: 125000, totalPonds: 5 });
-      setPonds([
-        { id: '1', name: 'পুকুর ১ (রুই)', area: 20, fish_type: 'রুই', stock_date: '2024-01-01', is_active: true, user_id: 'guest' },
-        { id: '2', name: 'পুকুর ২ (কাতলা)', area: 15, fish_type: 'কাতলা', stock_date: '2024-01-05', is_active: true, user_id: 'guest' },
-        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', area: 30, fish_type: 'পাঙ্গাস', stock_date: '2024-01-10', is_active: true, user_id: 'guest' },
-        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', area: 10, fish_type: 'তেলাপিয়া', stock_date: '2024-01-15', is_active: true, user_id: 'guest' },
-        { id: '5', name: 'পুকুর ৫ (কার্প)', area: 25, fish_type: 'কার্প', stock_date: '2024-01-20', is_active: true, user_id: 'guest' }
-      ] as any);
+      setStats({ totalExp: 45600, totalSale: 125000, totalPonds: 4, totalFishStock: 11000, totalFishSold: 600 });
+      setPondsSummary([
+        { id: '1', name: 'পুকুর ১ (রুই ও কাতলা)', speciesCount: 2, totalCount: 2500 },
+        { id: '2', name: 'পুকুর ২ (কাতলা)', speciesCount: 1, totalCount: 1500 },
+        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', speciesCount: 1, totalCount: 5000 },
+        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', speciesCount: 1, totalCount: 2000 }
+      ]);
       return;
     }
     try {
       const { data: exp } = await supabase.from('expenses').select('amount').eq('user_id', user.id);
-      const { data: sale } = await supabase.from('sales').select('amount').eq('user_id', user.id);
-      const { data: pondList, count } = await supabase.from('ponds').select('*', { count: 'exact' }).eq('user_id', user.id);
+      const { data: sale } = await supabase.from('sales').select('amount, count_sold').eq('user_id', user.id);
+      const { data: pondList, count } = await supabase.from('ponds').select('*, stocking_records(*)').eq('user_id', user.id);
       
-      if (pondList) setPonds(pondList);
+      let totalStock = 0;
+      if (pondList) {
+        const processed = pondList.map(p => {
+          const pCount = p.stocking_records?.reduce((a: any, b: any) => a + Number(b.count || 0), 0) || 0;
+          totalStock += pCount;
+          return {
+            id: p.id,
+            name: p.name,
+            speciesCount: p.stocking_records?.length || 0,
+            totalCount: pCount
+          };
+        });
+        setPondsSummary(processed);
+      }
+
       const totalExp = exp?.reduce((a, b) => a + Number(b.amount), 0) || 0;
       const totalSale = sale?.reduce((a, b) => a + Number(b.amount), 0) || 0;
-      setStats({ totalExp, totalSale, totalPonds: count || 0 });
+      const totalSold = sale?.reduce((a, b) => a + Number(b.count_sold || 0), 0) || 0;
+
+      setStats({ 
+        totalExp, 
+        totalSale, 
+        totalPonds: count || 0,
+        totalFishStock: totalStock,
+        totalFishSold: totalSold
+      });
     } catch (e) {
       console.error(e);
     }
   };
 
   const daysLeft = user?.expiry_date ? Math.ceil((new Date(user.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
-
-  const handleSaveMetric = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
-    if (!metricForm.pond_id) return alert('পুকুর নির্বাচন করুন');
-    setSavingMetric(true);
-    try {
-      const { error } = await supabase.from('water_logs').insert([{
-        user_id: user.id,
-        pond_id: metricForm.pond_id,
-        oxygen: parseFloat(metricForm.oxygen || '0'),
-        ph: parseFloat(metricForm.ph || '0'),
-        temp: parseFloat(metricForm.temp || '0'),
-        date: new Date().toISOString().split('T')[0]
-      }]);
-      if (error) throw error;
-      setMetricForm({ pond_id: '', oxygen: '', ph: '', temp: '' });
-      alert("✅ পানির মান সংরক্ষিত হয়েছে!");
-    } catch (err: any) {
-      alert("ত্রুটি: " + err.message);
-    } finally {
-      setSavingMetric(false);
-    }
-  };
 
   if (!user) return null;
 
@@ -127,49 +121,76 @@ const DashboardSummary: React.FC<{ user: UserProfile }> = ({ user }) => {
       {/* Quick Access Grid for Mobile */}
       <div className="lg:hidden grid grid-cols-3 gap-3">
         <QuickLink to="/dashboard/ponds" icon="🌊" label="পুকুর" />
-        <QuickLink to="/dashboard/expenses" icon="📉" label="খরচ" />
         <QuickLink to="/dashboard/sales" icon="💰" label="বিক্রি" />
+        <QuickLink to="/dashboard/expenses" icon="📉" label="খরচ" />
         <QuickLink to="/dashboard/feeds" icon="📦" label="খাবার" />
         <QuickLink to="/dashboard/inventory" icon="🏪" label="গুদাম" />
         <QuickLink to="/dashboard/reports" icon="📜" label="রিপোর্ট" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-        <div className={`bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border-t-8 ${stats.totalSale - stats.totalExp >= 0 ? 'border-green-500' : 'border-rose-500'}`}>
-           <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">মোট মুনাফা/ক্ষতি</p>
-           <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-slate-800">৳ {(stats.totalSale - stats.totalExp).toLocaleString()}</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className={`bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border-t-8 ${stats.totalSale - stats.totalExp >= 0 ? 'border-green-500' : 'border-rose-500'}`}>
+           <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">মোট মুনাফা/ক্ষতি</p>
+           <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-slate-800">৳ {(stats.totalSale - stats.totalExp).toLocaleString()}</h2>
         </div>
-        <div className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-slate-100 flex items-center justify-between">
+        
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
            <div>
-              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">মোট পুকুর ব্যবহার</p>
-              <h2 className="text-3xl md:text-5xl font-black text-slate-800">{stats.totalPonds} <span className="text-lg">টি</span></h2>
+              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">মোট পুকুর</p>
+              <h2 className="text-2xl md:text-4xl font-black text-slate-800">{stats.totalPonds} <span className="text-sm">টি</span></h2>
            </div>
-           <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl">🌊</div>
+           <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl md:text-2xl">🌊</div>
         </div>
-        <div className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-slate-100 flex items-center justify-center">
-           <Link to="/subscription" className="w-full text-center px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm hover:scale-105 transition-transform shadow-xl shadow-blue-200">প্যাকেজ আপগ্রেড</Link>
+
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+           <div>
+              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">পুকুরে মোট মাছ (মজুদ)</p>
+              <h2 className="text-2xl md:text-4xl font-black text-blue-600">{stats.totalFishStock.toLocaleString()} <span className="text-sm">পিস</span></h2>
+           </div>
+           <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl md:text-2xl">🐟</div>
+        </div>
+
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+           <div>
+              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">মোট বিক্রি হওয়া মাছ</p>
+              <h2 className="text-2xl md:text-4xl font-black text-green-600">{stats.totalFishSold.toLocaleString()} <span className="text-sm">পিস</span></h2>
+           </div>
+           <div className="w-10 h-10 md:w-12 md:h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center text-xl md:text-2xl">💰</div>
         </div>
       </div>
 
-      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] shadow-sm border border-slate-100 max-w-2xl">
-         <div className="flex items-center gap-3 mb-6 md:mb-8">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl text-white shadow-lg">🧪</div>
-            <h3 className="text-xl md:text-2xl font-black text-slate-800">পানির গুণমান পরিমাপ</h3>
-         </div>
-         <form onSubmit={handleSaveMetric} className="space-y-4 md:space-y-6">
-            <select required value={metricForm.pond_id} onChange={e => setMetricForm({...metricForm, pond_id: e.target.value})} className="w-full px-5 py-3.5 md:px-6 md:py-4 bg-slate-50 border-none rounded-2xl font-black text-sm md:text-base">
-              <option value="">পুকুর বেছে নিন</option>
-              {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <div className="grid grid-cols-3 gap-3 md:gap-4">
-               <input type="number" step="0.1" placeholder="DO" value={metricForm.oxygen} onChange={e => setMetricForm({...metricForm, oxygen: e.target.value})} className="w-full px-3 py-3.5 md:px-4 md:py-4 bg-slate-50 border-none rounded-2xl font-black text-center text-sm md:text-base" />
-               <input type="number" step="0.1" placeholder="pH" value={metricForm.ph} onChange={e => setMetricForm({...metricForm, ph: e.target.value})} className="w-full px-3 py-3.5 md:px-4 md:py-4 bg-slate-50 border-none rounded-2xl font-black text-center text-sm md:text-base" />
-               <input type="number" step="0.1" placeholder="Temp" value={metricForm.temp} onChange={e => setMetricForm({...metricForm, temp: e.target.value})} className="w-full px-3 py-3.5 md:px-4 md:py-4 bg-slate-50 border-none rounded-2xl font-black text-center text-sm md:text-base" />
+      {/* Pond Fish Stock Overview Widget */}
+      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] shadow-sm border border-slate-100">
+         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl text-white shadow-lg">🐟</div>
+               <div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-800">পুকুর ভিত্তিক মাছের বর্তমান পরিমাণ</h3>
+                  <p className="text-xs font-bold text-slate-400">প্রতিটি পুকুরের বর্তমান মজুদ ও মাছের বিবরণ</p>
+               </div>
             </div>
-            <button type="submit" disabled={savingMetric} className="w-full py-4 md:py-5 bg-blue-600 text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-lg md:text-xl shadow-xl hover:bg-blue-700 transition-all disabled:opacity-50">
-              {savingMetric ? 'সেভ হচ্ছে...' : 'সংরক্ষণ করুন'}
-            </button>
-         </form>
+            <Link to="/dashboard/sales" className="px-6 py-3 bg-green-600 text-white rounded-2xl font-black text-xs hover:scale-105 transition-transform shadow-md shadow-green-100 text-center">
+              💰 মাছ বিক্রি করুন
+            </Link>
+         </div>
+
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {pondsSummary.map(pond => (
+               <div key={pond.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+                  <div>
+                     <h4 className="font-black text-slate-800 text-base mb-1">{pond.name}</h4>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase block mb-3">{pond.speciesCount} টি ক্যাটাগরি</span>
+                  </div>
+                  <div className="flex justify-between items-baseline pt-2 border-t border-slate-200/60">
+                     <span className="text-xs font-bold text-slate-500">বর্তমান মজুদ:</span>
+                     <span className="text-lg font-black text-blue-600">{pond.totalCount.toLocaleString()} পিস</span>
+                  </div>
+               </div>
+            ))}
+            {pondsSummary.length === 0 && (
+               <div className="col-span-full py-8 text-center text-slate-400 font-bold italic">কোনো পুকুরের তথ্য পাওয়া যায়নি। আগে নতুন পুকুর যোগ করুন।</div>
+            )}
+         </div>
       </div>
     </div>
   );
@@ -276,16 +297,13 @@ const App: React.FC = () => {
           <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
             <Route index element={<DashboardSummary user={user!} />} />
             <Route path="ponds" element={<PondsPage user={user!} />} />
-            <Route path="expenses" element={<ExpensesPage user={user!} />} />
             <Route path="sales" element={<SalesPage user={user!} />} />
-            <Route path="owner" element={<OwnerProfile />} />
+            <Route path="expenses" element={<ExpensesPage user={user!} />} />
             <Route path="feeds" element={<FeedManagement user={user!} />} />
-            <Route path="reports" element={<ReportsPage user={user!} />} />
-            <Route path="water-logs" element={<WaterLogsPage user={user!} />} />
             <Route path="feed-logs" element={<FeedLogsPage user={user!} />} />
             <Route path="inventory" element={<InventoryPage user={user!} />} />
             <Route path="growth" element={<GrowthRecordsPage user={user!} />} />
-            <Route path="advisory" element={<AdvisoryPage user={user!} />} />
+            <Route path="reports" element={<ReportsPage user={user!} />} />
             <Route path="settings" element={<AccountSettings user={user!} onUpdateUser={fetchProfile} />} />
           </Route>
           <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/dashboard" />} />

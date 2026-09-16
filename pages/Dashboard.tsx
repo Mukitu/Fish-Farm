@@ -23,17 +23,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const navItems = [
     { label: 'ওভারভিউ', path: '/dashboard', icon: '📊' },
     { label: 'পুকুরসমূহ', path: '/dashboard/ponds', icon: '🌊' },
-    { label: 'চাষ গাইড', path: '/dashboard/advisory', icon: '📖' },
+    { label: 'মাছ বিক্রি ও হিসাব', path: '/dashboard/sales', icon: '💰' },
     { label: 'খাবার প্রয়োগ', path: '/dashboard/feed-logs', icon: '🍽️' },
     { label: 'খাবার ব্যবস্থাপনা', path: '/dashboard/feeds', icon: '📦' },
-    { label: 'পানির লগ', path: '/dashboard/water-logs', icon: '🧪' },
     { label: 'মাছের বৃদ্ধি', path: '/dashboard/growth', icon: '📈' },
     { label: 'গুদাম (Inventory)', path: '/dashboard/inventory', icon: '🏪' },
     { label: 'খরচের হিসাব', path: '/dashboard/expenses', icon: '📉' },
-    { label: 'বিক্রির হিসাব', path: '/dashboard/sales', icon: '💰' },
     { label: 'রিপোর্ট', path: '/dashboard/reports', icon: '📜' },
     { label: 'প্রোফাইল সেটিংস', path: '/dashboard/settings', icon: '⚙️' },
-    { label: 'প্রতিষ্ঠাতা', path: '/dashboard/owner', icon: '👑' },
   ];
 
   return (

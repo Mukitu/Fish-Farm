@@ -145,26 +145,73 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleStocking = async () => {
-    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
-    if (!selectedPond || !stocking.species) return alert("মাছের জাত নির্বাচন করুন");
+    if (!selectedPond || !stocking.species || !stocking.count) {
+      return alert("মাছের নাম এবং পিস সংখ্যা প্রদান করুন!");
+    }
     setSaving(true);
     try {
-      const count = parseInt(stocking.count);
-      const weight = parseFloat(stocking.total_weight);
+      const count = parseInt(stocking.count) || 0;
+      const weight = parseFloat(stocking.total_weight) || 0;
+      const avgSize = parseFloat(stocking.avg_size_inch) || 0;
+
+      if (user.id === 'guest-id') {
+        const newRecord = {
+          id: 'stock-' + Date.now(),
+          species: stocking.species.trim(),
+          count: count,
+          total_weight_kg: weight,
+          avg_size_inch: avgSize
+        };
+
+        setPonds(prevPonds => prevPonds.map(p => {
+          if (p.id === selectedPond.id) {
+            const existingRecords = p.stocking_records || [];
+            // Check if species already exists in this pond, add count to it
+            const existingIndex = existingRecords.findIndex((r: any) => r.species.toLowerCase() === stocking.species.trim().toLowerCase());
+            let updatedRecords;
+            if (existingIndex > -1) {
+              updatedRecords = [...existingRecords];
+              updatedRecords[existingIndex] = {
+                ...updatedRecords[existingIndex],
+                count: Number(updatedRecords[existingIndex].count || 0) + count,
+                total_weight_kg: Number(updatedRecords[existingIndex].total_weight_kg || 0) + weight
+              };
+            } else {
+              updatedRecords = [...existingRecords, newRecord];
+            }
+
+            const totalW = updatedRecords.reduce((a: any, b: any) => a + Number(b.total_weight_kg || 0), 0);
+            const totalC = updatedRecords.reduce((a: any, b: any) => a + Number(b.count || 0), 0);
+            return {
+              ...p,
+              stocking_records: updatedRecords,
+              total_weight: totalW,
+              total_count: totalC
+            };
+          }
+          return p;
+        }));
+
+        setIsStockModalOpen(false);
+        setStocking({ species: '', count: '', total_weight: '', avg_size_inch: '' });
+        alert(`✅ ${stocking.species} (${count} পিস) পুকুরে যোগ করা হয়েছে!`);
+        return;
+      }
+
       const { error } = await supabase.from('stocking_records').insert([{
         user_id: user.id,
         pond_id: selectedPond.id,
-        species: stocking.species,
+        species: stocking.species.trim(),
         count: count,
         total_weight_kg: weight,
-        avg_weight_gm: (weight * 1000) / count,
-        avg_size_inch: parseFloat(stocking.avg_size_inch || '0')
+        avg_weight_gm: count > 0 ? (weight * 1000) / count : 0,
+        avg_size_inch: avgSize
       }]);
       if (error) throw error;
       setIsStockModalOpen(false);
       setStocking({ species: '', count: '', total_weight: '', avg_size_inch: '' });
       await fetchPonds();
-      alert("✅ মাছের পোনা সফলভাবে মজুদ করা হয়েছে!");
+      alert(`✅ ${stocking.species} (${count} পিস) সফলভাবে রেকর্ড হয়েছে!`);
     } catch (err: any) { alert(err.message); } finally { setSaving(false); }
   };
 
@@ -347,43 +394,48 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             <p className="text-center text-xs font-bold text-blue-600 -mt-4">{selectedPond?.name}</p>
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মাছের জাত/ক্যাটাগরি</label>
-                <select 
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মাছের নাম / ক্যাটাগরি</label>
+                <input 
+                  type="text" 
+                  placeholder="উদা: রুই, কাতলা, তেলাপিয়া বা যেকোনো নাম" 
                   value={stocking.species} 
-                  onChange={e => setStocking({...stocking, species: e.target.value})}
-                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">মাছের জাত নির্বাচন করুন</option>
-                  <option value="রুই">রুই</option>
-                  <option value="কাতলা">কাতলা</option>
-                  <option value="মৃগেল">মৃগেল</option>
-                  <option value="কালবাউশ">কালবাউশ</option>
-                  <option value="পাঙ্গাস">পাঙ্গাস</option>
-                  <option value="মনোসেক্স তেলাপিয়া">মনোসেক্স তেলাপিয়া</option>
-                  <option value="ভিয়েতনামি কৈ">ভিয়েতনামি কৈ</option>
-                  <option value="শিং ও মাগুর">শিং ও মাগুর</option>
-                  <option value="গুলশা ও পাবদা">গুলশা ও পাবদা</option>
-                  <option value="কার্প">কার্প</option>
-                  {availableGuides.map(g => <option key={g.species_name} value={g.species_name}>{g.species_name}</option>)}
-                  <option value="অন্যান্য">অন্যান্য (নিজে লিখুন)</option>
-                </select>
+                  onChange={e => setStocking({...stocking, species: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" 
+                />
               </div>
-              {stocking.species === 'অন্যান্য' && (
-                <input type="text" placeholder="মাছের নাম লিখুন (উদা: রূপচাঁদা)" onChange={e => setStocking({...stocking, species: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সংখ্যা (পিস)</label>
-                  <input type="number" placeholder="উদা: ৫০০" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সাইজ (ইঞ্চি)</label>
-                  <input type="number" placeholder="উদা: ৫" value={stocking.avg_size_inch} onChange={e => setStocking({...stocking, avg_size_inch: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
+              
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মোট ওজন (কেজি)</label>
-                <input type="number" placeholder="উদা: ১২০" value={stocking.total_weight} onChange={e => setStocking({...stocking, total_weight: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সংখ্যা (পিস)</label>
+                <input 
+                  type="number" 
+                  placeholder="উদা: ২০০০" 
+                  value={stocking.count} 
+                  onChange={e => setStocking({...stocking, count: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold text-lg text-blue-600 outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মোট ওজন কেজি (ঐচ্ছিক)</label>
+                  <input 
+                    type="number" 
+                    placeholder="উদা: ১২০" 
+                    value={stocking.total_weight} 
+                    onChange={e => setStocking({...stocking, total_weight: e.target.value})} 
+                    className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সাইজ ইঞ্চি (ঐচ্ছিক)</label>
+                  <input 
+                    type="number" 
+                    placeholder="উদা: ৫" 
+                    value={stocking.avg_size_inch} 
+                    onChange={e => setStocking({...stocking, avg_size_inch: e.target.value})} 
+                    className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs" 
+                  />
+                </div>
               </div>
             </div>
             <div className="flex gap-4 pt-2">
