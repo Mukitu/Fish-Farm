@@ -11,6 +11,9 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [selectedPond, setSelectedPond] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPond, setEditingPond] = useState<{ id: string; name: string; area: string; fish_type: string }>({ id: '', name: '', area: '', fish_type: '' });
+  
   const [newPond, setNewPond] = useState({ name: '', area: '', fish_type: '' });
   const [stocking, setStocking] = useState({ species: '', count: '', total_weight: '', avg_size_inch: '' });
   const [availableGuides, setAvailableGuides] = useState<any[]>([]);
@@ -28,11 +31,31 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchPonds = async () => {
     if (user.id === 'guest-id') {
       setPonds([
-        { id: '1', name: 'পুকুর ১ (রুই)', area: 20, fish_type: 'রুই', total_weight: 1200, total_count: 2500, avg_weight: 480 },
-        { id: '2', name: 'পুকুর ২ (কাতলা)', area: 15, fish_type: 'কাতলা', total_weight: 850, total_count: 1500, avg_weight: 566 },
-        { id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', area: 30, fish_type: 'পাঙ্গাস', total_weight: 2500, total_count: 5000, avg_weight: 500 },
-        { id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', area: 10, fish_type: 'তেলাপিয়া', total_weight: 400, total_count: 2000, avg_weight: 200 },
-        { id: '5', name: 'পুকুর ৫ (কার্প)', area: 25, fish_type: 'কার্প', total_weight: 1500, total_count: 3000, avg_weight: 500 }
+        { 
+          id: '1', name: 'পুকুর ১ (রুই ও কাতলা)', area: 20, fish_type: 'মিশ্র চাষ', total_weight: 1200, total_count: 2500, avg_weight: 480,
+          stocking_records: [
+            { id: 's1', species: 'রুই', count: 1500, total_weight_kg: 800, avg_size_inch: 5 },
+            { id: 's2', species: 'কাতলা', count: 1000, total_weight_kg: 400, avg_size_inch: 6 }
+          ]
+        },
+        { 
+          id: '2', name: 'পুকুর ২ (কাতলা)', area: 15, fish_type: 'কাতলা', total_weight: 850, total_count: 1500, avg_weight: 566,
+          stocking_records: [
+            { id: 's3', species: 'কাতলা', count: 1500, total_weight_kg: 850, avg_size_inch: 7 }
+          ]
+        },
+        { 
+          id: '3', name: 'পুকুর ৩ (পাঙ্গাস)', area: 30, fish_type: 'পাঙ্গাস', total_weight: 2500, total_count: 5000, avg_weight: 500,
+          stocking_records: [
+            { id: 's4', species: 'পাঙ্গাস', count: 5000, total_weight_kg: 2500, avg_size_inch: 4 }
+          ]
+        },
+        { 
+          id: '4', name: 'পুকুর ৪ (তেলাপিয়া)', area: 10, fish_type: 'তেলাপিয়া', total_weight: 400, total_count: 2000, avg_weight: 200,
+          stocking_records: [
+            { id: 's5', species: 'তেলাপিয়া', count: 2000, total_weight_kg: 400, avg_size_inch: 3 }
+          ]
+        }
       ]);
       setLoading(false);
       return;
@@ -48,8 +71,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       if (error) throw error;
 
       const processed = data?.map(p => {
-        const totalW = p.stocking_records?.reduce((a: any, b: any) => a + Number(b.total_weight_kg), 0) || 0;
-        const totalC = p.stocking_records?.reduce((a: any, b: any) => a + Number(b.count), 0) || 0;
+        const totalW = p.stocking_records?.reduce((a: any, b: any) => a + Number(b.total_weight_kg || 0), 0) || 0;
+        const totalC = p.stocking_records?.reduce((a: any, b: any) => a + Number(b.count || 0), 0) || 0;
         return { 
           ...p, 
           total_weight: totalW, 
@@ -86,6 +109,39 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setNewPond({ name: '', area: '', fish_type: '' });
       await fetchPonds();
     } catch (err: any) { alert(err.message); } finally { setSaving(false); }
+  };
+
+  const handleEditPond = async () => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
+    if (!editingPond.name || !editingPond.area) {
+      alert("পুকুরের নাম এবং আয়তন দিতে হবে!");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('ponds').update({
+        name: editingPond.name,
+        area: parseFloat(editingPond.area),
+        fish_type: editingPond.fish_type
+      }).eq('id', editingPond.id);
+
+      if (error) throw error;
+      setIsEditModalOpen(false);
+      await fetchPonds();
+      alert("✅ পুকুরের তথ্য সফলভাবে আপডেট হয়েছে!");
+    } catch (err: any) { alert(err.message); } finally { setSaving(false); }
+  };
+
+  const handleDeleteStock = async (stockId: string) => {
+    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
+    if (confirm('আপনি কি এই মাছের ক্যাটাগরি রেকর্ডটি মুছে ফেলতে চান?')) {
+      const { error } = await supabase.from('stocking_records').delete().eq('id', stockId);
+      if (!error) {
+        fetchPonds();
+      } else {
+        alert(error.message);
+      }
+    }
   };
 
   const handleStocking = async () => {
@@ -127,74 +183,212 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <div className="col-span-full text-center py-20 font-black animate-pulse text-slate-400">ডাটা লোড হচ্ছে...</div>
         ) : (
           ponds.map(pond => (
-            <div key={pond.id} className="bg-white rounded-[2.5rem] md:rounded-[3rem] shadow-sm border border-slate-100 p-8 md:p-10 hover:shadow-2xl transition-all">
-              <div className="flex justify-between mb-4 md:mb-6">
-                <div className="w-12 h-12 md:w-14 md:h-14 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-2xl md:text-3xl">🌊</div>
-                <button onClick={async () => {if(confirm('পুকুরটি মুছে ফেলবেন?')) {await supabase.from('ponds').delete().eq('id', pond.id); fetchPonds();}}} className="text-slate-200 hover:text-rose-500 transition-colors">🗑️</button>
-              </div>
-              <h3 className="text-xl md:text-2xl font-black text-slate-800">{pond.name}</h3>
-              <p className="text-slate-400 font-black text-[10px] md:text-sm uppercase mb-6 md:mb-8">{pond.area} শতাংশ | {pond.fish_type}</p>
-              
-              <div className="bg-slate-50 p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] space-y-3 md:space-y-4 mb-6 md:mb-8">
-                <div className="flex justify-between text-xs md:text-sm font-bold">
-                  <span className="text-slate-400">মোট মাছ:</span> 
-                  <span className="text-slate-800 font-black">{pond.total_count} পিস</span>
+            <div key={pond.id} className="bg-white rounded-[2.5rem] md:rounded-[3rem] shadow-sm border border-slate-100 p-6 md:p-8 hover:shadow-2xl transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl">🌊</div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setEditingPond({ id: pond.id, name: pond.name, area: String(pond.area), fish_type: pond.fish_type || '' });
+                        setIsEditModalOpen(true);
+                      }} 
+                      className="w-10 h-10 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl flex items-center justify-center text-sm font-bold transition-colors"
+                      title="পুকুর এডিট করুন"
+                    >
+                      ✏️
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if(confirm('পুকুরটি মুছে ফেলবেন?')) {
+                          if (user.id === 'guest-id') { setPonds(ponds.filter(p => p.id !== pond.id)); return; }
+                          await supabase.from('ponds').delete().eq('id', pond.id); 
+                          fetchPonds();
+                        }
+                      }} 
+                      className="w-10 h-10 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl flex items-center justify-center text-sm font-bold transition-colors"
+                      title="পুকুর মুছে ফেলুন"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs md:text-sm font-bold">
-                  <span className="text-slate-400">মোট ওজন:</span> 
-                  <span className="text-blue-600 font-black">{pond.total_weight} কেজি</span>
+
+                <h3 className="text-xl md:text-2xl font-black text-slate-800">{pond.name}</h3>
+                <p className="text-slate-400 font-bold text-xs uppercase mb-4">{pond.area} শতাংশ | {pond.fish_type || 'সাধারণ চাষ'}</p>
+                
+                {/* Overall Stats */}
+                <div className="bg-blue-50/60 p-4 rounded-2xl flex justify-between items-center mb-4 text-xs font-bold">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">মোট মাছ</span>
+                    <span className="text-slate-900 font-black text-base">{pond.total_count || 0} পিস</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400 block text-[10px] uppercase">মোট ওজন</span>
+                    <span className="text-blue-600 font-black text-base">{pond.total_weight || 0} কেজি</span>
+                  </div>
+                </div>
+
+                {/* Species Breakdown */}
+                <div className="bg-slate-50 p-4 rounded-2xl space-y-2 mb-6">
+                  <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2 flex justify-between items-center">
+                    <span>মাছের জাত ও মজুদ</span>
+                    <span className="text-blue-600 font-bold">{pond.stocking_records?.length || 0} টি জাত</span>
+                  </div>
+
+                  {pond.stocking_records && pond.stocking_records.length > 0 ? (
+                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                      {pond.stocking_records.map((stock: any) => (
+                        <div key={stock.id || stock.species} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-xs font-bold">
+                          <div>
+                            <span className="text-slate-800 font-black block">🐟 {stock.species}</span>
+                            {stock.avg_size_inch > 0 && (
+                              <span className="text-[10px] text-slate-400">সাইজ: {stock.avg_size_inch} ইঞ্চি</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <span className="text-blue-600 font-black block">{stock.count || 0} পিস</span>
+                              <span className="text-slate-400 text-[10px]">({stock.total_weight_kg || 0} কেজি)</span>
+                            </div>
+                            {user.id !== 'guest-id' && (
+                              <button 
+                                onClick={() => handleDeleteStock(stock.id)} 
+                                className="text-slate-300 hover:text-rose-500 ml-1 text-xs" 
+                                title="এই মাছের রেকর্ড মুছুন"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic py-2 text-center">এখনো কোনো মাছের জাত যোগ করা হয়নি</p>
+                  )}
                 </div>
               </div>
 
-              <button onClick={() => {setSelectedPond(pond); setIsStockModalOpen(true);}} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm md:text-base active:scale-95 transition-transform">🐟 পোনা মজুদ</button>
+              <button 
+                onClick={() => { setSelectedPond(pond); setIsStockModalOpen(true); }} 
+                className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-md"
+              >
+                ➕ মাছের পোনা/জাত মজুদ করুন
+              </button>
             </div>
           ))
         )}
       </div>
 
+      {/* New Pond Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
-            <h3 className="text-2xl font-black text-center">নতুন পুকুর যোগ</h3>
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 space-y-6 animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-center text-slate-800">নতুন পুকুর যোগ করুন</h3>
             <div className="space-y-4">
-              <input type="text" placeholder="পুকুরের নাম" value={newPond.name} onChange={e => setNewPond({...newPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
-              <input type="number" placeholder="আয়তন (শতাংশ)" value={newPond.area} onChange={e => setNewPond({...newPond, area: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
-              <input type="text" placeholder="মাছের ধরন" value={newPond.fish_type} onChange={e => setNewPond({...newPond, fish_type: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">পুকুরের নাম</label>
+                <input type="text" placeholder="উদা: পুকুর ১ (উত্তর পাড়া)" value={newPond.name} onChange={e => setNewPond({...newPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">আয়তন (শতাংশ)</label>
+                <input type="number" placeholder="উদা: ২৫" value={newPond.area} onChange={e => setNewPond({...newPond, area: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মাছের ধরন/বিবরণ</label>
+                <input type="text" placeholder="উদা: কার্প মিশ্র চাষ" value={newPond.fish_type} onChange={e => setNewPond({...newPond, fish_type: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
-            <div className="flex gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAddPond} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">সেভ করুন</button>
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
+              <button onClick={handleAddPond} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200">
+                {saving ? 'সেভ হচ্ছে...' : 'সেভ করুন'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Edit Pond Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 space-y-6 animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-center text-slate-800">পুকুরের তথ্য এডিট করুন</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">পুকুরের নাম</label>
+                <input type="text" value={editingPond.name} onChange={e => setEditingPond({...editingPond, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">আয়তন (শতাংশ)</label>
+                <input type="number" value={editingPond.area} onChange={e => setEditingPond({...editingPond, area: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মাছের ধরন/বিবরণ</label>
+                <input type="text" value={editingPond.fish_type} onChange={e => setEditingPond({...editingPond, fish_type: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
+              <button onClick={handleEditPond} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200">
+                {saving ? 'আপডেট হচ্ছে...' : 'আপডেট করুন'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stocking Modal */}
       {isStockModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 space-y-6">
-            <h3 className="text-2xl font-black text-center">মাছ পোনা মজুদ</h3>
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 space-y-6 animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-center text-slate-800">মাছের জাত/পোনা মজুদ করুন</h3>
+            <p className="text-center text-xs font-bold text-blue-600 -mt-4">{selectedPond?.name}</p>
             <div className="space-y-4">
-              <select 
-                value={stocking.species} 
-                onChange={e => setStocking({...stocking, species: e.target.value})}
-                className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold"
-              >
-                <option value="">মাছের জাত নির্বাচন করুন</option>
-                {availableGuides.map(g => <option key={g.species_name} value={g.species_name}>{g.species_name}</option>)}
-                <option value="অন্যান্য">অন্যান্য</option>
-              </select>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মাছের জাত/ক্যাটাগরি</label>
+                <select 
+                  value={stocking.species} 
+                  onChange={e => setStocking({...stocking, species: e.target.value})}
+                  className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">মাছের জাত নির্বাচন করুন</option>
+                  <option value="রুই">রুই</option>
+                  <option value="কাতলা">কাতলা</option>
+                  <option value="মৃগেল">মৃগেল</option>
+                  <option value="কালবাউশ">কালবাউশ</option>
+                  <option value="পাঙ্গাস">পাঙ্গাস</option>
+                  <option value="মনোসেক্স তেলাপিয়া">মনোসেক্স তেলাপিয়া</option>
+                  <option value="ভিয়েতনামি কৈ">ভিয়েতনামি কৈ</option>
+                  <option value="শিং ও মাগুর">শিং ও মাগুর</option>
+                  <option value="গুলশা ও পাবদা">গুলশা ও পাবদা</option>
+                  <option value="কার্প">কার্প</option>
+                  {availableGuides.map(g => <option key={g.species_name} value={g.species_name}>{g.species_name}</option>)}
+                  <option value="অন্যান্য">অন্যান্য (নিজে লিখুন)</option>
+                </select>
+              </div>
               {stocking.species === 'অন্যান্য' && (
-                <input type="text" placeholder="মাছের নাম লিখুন" onChange={e => setStocking({...stocking, species: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+                <input type="text" placeholder="মাছের নাম লিখুন (উদা: রূপচাঁদা)" onChange={e => setStocking({...stocking, species: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
               )}
               <div className="grid grid-cols-2 gap-4">
-                <input type="number" placeholder="সংখ্যা (পিস)" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
-                <input type="number" placeholder="সাইজ (ইঞ্চি)" value={stocking.avg_size_inch} onChange={e => setStocking({...stocking, avg_size_inch: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সংখ্যা (পিস)</label>
+                  <input type="number" placeholder="উদা: ৫০০" value={stocking.count} onChange={e => setStocking({...stocking, count: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">সাইজ (ইঞ্চি)</label>
+                  <input type="number" placeholder="উদা: ৫" value={stocking.avg_size_inch} onChange={e => setStocking({...stocking, avg_size_inch: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
-              <input type="number" placeholder="মোট ওজন (কেজি)" value={stocking.total_weight} onChange={e => setStocking({...stocking, total_weight: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">মোট ওজন (কেজি)</label>
+                <input type="number" placeholder="উদা: ১২০" value={stocking.total_weight} onChange={e => setStocking({...stocking, total_weight: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
-            <div className="flex gap-4">
-              <button onClick={() => setIsStockModalOpen(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleStocking} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black">
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setIsStockModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
+              <button onClick={handleStocking} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200">
                 {saving ? 'সেভ হচ্ছে...' : 'মজুদ সম্পন্ন'}
               </button>
             </div>

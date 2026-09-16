@@ -123,6 +123,20 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure sales table columns exist if created earlier
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='weight_kg') THEN
+        ALTER TABLE public.sales ADD COLUMN weight_kg DECIMAL DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='count_sold') THEN
+        ALTER TABLE public.sales ADD COLUMN count_sold INTEGER DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='species') THEN
+        ALTER TABLE public.sales ADD COLUMN species TEXT;
+    END IF;
+END $$;
+
 -- ১০. পোনা মজুদ টেবিল
 CREATE TABLE IF NOT EXISTS public.stocking_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
