@@ -1,16 +1,16 @@
 {
   "short_name": "মৎস্য খামার",
-  "name": "মৎস্য খামার - উন্নত মাছ চাষের সমাধান",
+  "name": "মৎস্য খামার - উন্নত মাছ চাষের ডিজিটাল সমাধান",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3062/3062254.png",
-      "type": "image/png",
-      "sizes": "192x192",
+      "src": "/fish-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
       "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3062/3062254.png",
-      "type": "image/png",
+      "src": "/fish-icon.svg",
+      "type": "image/svg+xml",
       "sizes": "512x512",
       "purpose": "any maskable"
     }
@@ -19,6 +19,6 @@
   "scope": "/",
   "display": "standalone",
   "theme_color": "#2563eb",
-  "background_color": "#ffffff",
+  "background_color": "#0f172a",
   "orientation": "portrait"
 }

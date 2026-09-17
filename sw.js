@@ -2,7 +2,8 @@ const CACHE_NAME = 'fish-farm-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/fish-icon.svg'
 ];
 
 self.addEventListener('install', event => {
