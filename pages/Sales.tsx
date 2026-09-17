@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
 import { exportReportToPdf } from '../utils/pdfExport';
+import { syncFinancialNetProfit } from '../utils/financialSync';
 
 const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [sales, setSales] = useState<any[]>([]);
@@ -9,10 +10,13 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isProfitLossModalOpen, setIsProfitLossModalOpen] = useState(false);
   
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+
   // Filtering States
   const [selectedFilterPond, setSelectedFilterPond] = useState<string>('all');
   const [datePreset, setDatePreset] = useState<string>('all');
@@ -29,8 +33,8 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     sale_date: new Date().toISOString().split('T')[0]
   });
 
-  // State to hold multiple selected fish species with piece count
-  const [multiSpeciesSelect, setMultiSpeciesSelect] = useState<{ [speciesName: string]: { selected: boolean; count: string } }>({});
+  // State to hold multiple selected fish species (boolean map)
+  const [multiSpeciesSelect, setMultiSpeciesSelect] = useState<{ [speciesName: string]: { selected: boolean } }>({});
 
   useEffect(() => {
     fetchData();
@@ -103,6 +107,13 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         .order('date', { ascending: false });
 
       if (expData) setExpenses(expData);
+
+      // Automatically sync net profit to database
+      if (user.id !== 'guest-id') {
+        setIsSyncingDb(true);
+        await syncFinancialNetProfit(user.id, saleData || [], expData || [], pondData || []);
+        setIsSyncingDb(false);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -110,8 +121,62 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
+  const handleManualSync = async () => {
+    if (user.id === 'guest-id') {
+      alert("ডেমো মোডে নেট প্রফিট ডাটাবেজ সিঙ্ক সিমুলেট করা হয়েছে!");
+      return;
+    }
+    setIsSyncingDb(true);
+    const { netProfit } = await syncFinancialNetProfit(user.id, sales, expenses, ponds);
+    setIsSyncingDb(false);
+    alert(`✅ বিক্রয় ও খরচের বিয়োগফল (নেট প্রফিট ৳ ${netProfit.toLocaleString()}) ডাটাবেজে সফলভাবে আপডেট ও সেভ হয়েছে!`);
+  };
+
   const selectedPondObj = ponds.find(p => p.id === newSale.pond_id);
   const availableSpeciesList = selectedPondObj?.stocking_records || [];
+
+  const handleOpenAddModal = () => {
+    setEditingSaleId(null);
+    setNewSale({ 
+      pond_id: '', 
+      species: '', 
+      count_sold: '', 
+      weight: '', 
+      amount: '', 
+      item_name: '',
+      sale_date: new Date().toISOString().split('T')[0]
+    });
+    setMultiSpeciesSelect({});
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (sale: any) => {
+    setEditingSaleId(sale.id);
+    const pId = sale.pond_id || '';
+    const sDate = sale.date || new Date().toISOString().split('T')[0];
+
+    setNewSale({
+      pond_id: pId,
+      species: sale.species || '',
+      count_sold: sale.count_sold ? String(sale.count_sold) : '',
+      weight: sale.weight_kg ? String(sale.weight_kg) : '',
+      amount: sale.amount ? String(sale.amount) : '',
+      item_name: sale.item_name || '',
+      sale_date: sDate
+    });
+
+    // Populate multiSpeciesSelect based on stocking records in selected pond
+    const pObj = ponds.find(p => p.id === pId);
+    const speciesList = pObj?.stocking_records || [];
+    const initialSelect: any = {};
+    speciesList.forEach((st: any) => {
+      const isChecked = sale.species ? sale.species.toLowerCase().includes(st.species.toLowerCase()) : false;
+      initialSelect[st.species] = { selected: isChecked };
+    });
+    setMultiSpeciesSelect(initialSelect);
+
+    setIsModalOpen(true);
+  };
 
   const handlePondChange = (pondId: string) => {
     const pObj = ponds.find(p => p.id === pondId);
@@ -119,115 +184,116 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     
     const initialMultiSelect: any = {};
     speciesList.forEach((st: any) => {
-      initialMultiSelect[st.species] = { selected: false, count: '' };
+      initialMultiSelect[st.species] = { selected: false };
     });
 
     setNewSale(prev => ({ ...prev, pond_id: pondId, species: '' }));
     setMultiSpeciesSelect(initialMultiSelect);
   };
 
-  const handleAdd = async () => {
+  const handleSaveSale = async () => {
     if (!newSale.pond_id) return alert("অনুগ্রহ করে পুকুর নির্বাচন করুন!");
 
-    // Collect all selected species from multi-select or single select
-    const selectedItems: { species: string; count: number }[] = [];
+    // Determine checked species
+    const checkedSpecies = Object.entries(multiSpeciesSelect)
+      .filter(([_, val]: [string, any]) => val.selected)
+      .map(([spName]) => spName);
 
-    Object.entries(multiSpeciesSelect).forEach(([spName, val]) => {
-      if (val.selected && parseInt(val.count) > 0) {
-        selectedItems.push({ species: spName, count: parseInt(val.count) });
-      }
-    });
-
-    // Fallback if user selected single dropdown species
-    if (selectedItems.length === 0 && newSale.species && parseInt(newSale.count_sold) > 0) {
-      selectedItems.push({ species: newSale.species, count: parseInt(newSale.count_sold) });
+    let finalSpecies = newSale.species.trim();
+    if (!finalSpecies && checkedSpecies.length > 0) {
+      finalSpecies = checkedSpecies.join(' + ');
     }
 
-    if (selectedItems.length === 0) {
-      return alert("অনুগ্রহ করে অন্তত ১টি মাছ নির্বাচন করে বিক্রিত মাছের সংখ্যা (পিস) দিন!");
+    if (!finalSpecies) {
+      return alert("অনুগ্রহ করে বিক্রিত মাছের নাম নির্বাচন করুন বা লিখুন!");
     }
+
+    const totalAmount = parseFloat(newSale.amount) || 0;
+    if (totalAmount <= 0) {
+      return alert("অনুগ্রহ করে মোট বিক্রয় মূল্য (৳) সঠিকভাবে দিন!");
+    }
+
+    const saleDate = newSale.sale_date || new Date().toISOString().split('T')[0];
+    const totalSoldPcs = parseInt(newSale.count_sold) || 0;
+    const itemName = newSale.item_name || `${finalSpecies} বিক্রি`;
+    const selectedPondObj = ponds.find(p => p.id === newSale.pond_id);
 
     setSaving(true);
     try {
-      const totalAmount = parseFloat(newSale.amount) || 0;
-      const saleDate = newSale.sale_date || new Date().toISOString().split('T')[0];
-      const totalSoldPcs = selectedItems.reduce((acc, curr) => acc + curr.count, 0);
+      if (editingSaleId) {
+        // EDIT EXISTING RECORD
+        if (user.id === 'guest-id') {
+          setSales(prev => prev.map(s => {
+            if (s.id === editingSaleId) {
+              return {
+                ...s,
+                date: saleDate,
+                pond_id: newSale.pond_id,
+                ponds: { name: selectedPondObj?.name || s.ponds?.name || 'পুকুর' },
+                species: finalSpecies,
+                count_sold: totalSoldPcs,
+                weight_kg: parseFloat(newSale.weight) || 0,
+                amount: totalAmount,
+                item_name: itemName
+              };
+            }
+            return s;
+          }));
+        } else {
+          const { error: updateErr } = await supabase.from('sales').update({
+            pond_id: newSale.pond_id,
+            species: finalSpecies,
+            item_name: itemName,
+            count_sold: totalSoldPcs,
+            weight_kg: parseFloat(newSale.weight) || 0,
+            amount: totalAmount,
+            date: saleDate
+          }).eq('id', editingSaleId);
 
-      const speciesSummary = selectedItems.map(item => `${item.species} (${item.count} পিস)`).join(' + ');
-      const itemName = newSale.item_name || `${speciesSummary} বিক্রি`;
-
-      if (user.id === 'guest-id') {
-        const newSaleRecord = {
-          id: 'sale-' + Date.now(),
-          date: saleDate,
-          pond_id: newSale.pond_id,
-          ponds: { name: selectedPondObj?.name || 'পুকুর' },
-          species: speciesSummary,
-          count_sold: totalSoldPcs,
-          weight_kg: parseFloat(newSale.weight) || 0,
-          amount: totalAmount,
-          item_name: itemName
-        };
-
-        setSales(prev => [newSaleRecord, ...prev]);
-
-        // Deduct from local pond stocking records for each selected species
-        setPonds(prevPonds => prevPonds.map(p => {
-          if (p.id === newSale.pond_id) {
-            const updatedStock = (p.stocking_records || []).map((st: any) => {
-              const matched = selectedItems.find(item => item.species === st.species);
-              if (matched) {
-                return {
-                  ...st,
-                  count: Math.max(0, (st.count || 0) - matched.count)
-                };
-              }
-              return st;
-            });
-            return { ...p, stocking_records: updatedStock };
-          }
-          return p;
-        }));
-
-        setIsModalOpen(false);
-        setNewSale({ pond_id: '', species: '', count_sold: '', amount: '', weight: '', item_name: '', sale_date: new Date().toISOString().split('T')[0] });
-        setMultiSpeciesSelect({});
-        alert(`✅ ${speciesSummary} বিক্রি ডেমো মোডে সফলভাবে সেভ হয়েছে এবং মজুদ থেকে মাইনাস করা হয়েছে!`);
-        return;
-      }
-
-      // 1. Insert Sales Record into Supabase
-      const { error: saleErr } = await supabase.from('sales').insert([{
-        user_id: user.id,
-        pond_id: newSale.pond_id,
-        species: speciesSummary,
-        item_name: itemName,
-        count_sold: totalSoldPcs,
-        weight_kg: parseFloat(newSale.weight) || 0,
-        amount: totalAmount,
-        date: saleDate
-      }]);
-
-      if (saleErr) throw saleErr;
-
-      // 2. Auto Minus Stock for each selected species
-      for (const item of selectedItems) {
-        const matchingStock = availableSpeciesList.find((s: any) => s.species === item.species);
-        if (matchingStock) {
-          const currentCount = Number(matchingStock.count || 0);
-          const newCount = Math.max(0, currentCount - item.count);
-
-          await supabase.from('stocking_records').update({
-            count: newCount
-          }).eq('id', matchingStock.id);
+          if (updateErr) throw updateErr;
         }
+
+        alert("✅ বিক্রির বিবরণ সফলভাবে আপডেট করা হয়েছে!");
+      } else {
+        // ADD NEW RECORD
+        if (user.id === 'guest-id') {
+          const newSaleRecord = {
+            id: 'sale-' + Date.now(),
+            date: saleDate,
+            pond_id: newSale.pond_id,
+            ponds: { name: selectedPondObj?.name || 'পুকুর' },
+            species: finalSpecies,
+            count_sold: totalSoldPcs,
+            weight_kg: parseFloat(newSale.weight) || 0,
+            amount: totalAmount,
+            item_name: itemName
+          };
+
+          setSales(prev => [newSaleRecord, ...prev]);
+        } else {
+          const { error: saleErr } = await supabase.from('sales').insert([{
+            user_id: user.id,
+            pond_id: newSale.pond_id,
+            species: finalSpecies,
+            item_name: itemName,
+            count_sold: totalSoldPcs,
+            weight_kg: parseFloat(newSale.weight) || 0,
+            amount: totalAmount,
+            date: saleDate
+          }]);
+
+          if (saleErr) throw saleErr;
+        }
+
+        alert(`✅ ${finalSpecies} বিক্রির রেকর্ড সংরক্ষিত হয়েছে!`);
       }
 
       setIsModalOpen(false);
+      setEditingSaleId(null);
       setNewSale({ pond_id: '', species: '', count_sold: '', amount: '', weight: '', item_name: '', sale_date: new Date().toISOString().split('T')[0] });
       setMultiSpeciesSelect({});
+
       await fetchData();
-      alert(`✅ ${speciesSummary} বিক্রি সংরক্ষিত হয়েছে এবং মজুদ থেকে অটো-মাইনাস করা হয়েছে!`);
     } catch (err: any) {
       alert("ত্রুটি: " + err.message);
     } finally {
@@ -384,7 +450,7 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             🔍 বিস্তারিত ভিউ
           </button>
           <button 
-            onClick={() => setIsModalOpen(true)} 
+            onClick={handleOpenAddModal} 
             className="w-full sm:w-auto px-5 py-3.5 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-105 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
           >
             💰 বিক্রি যোগ করুন
@@ -486,17 +552,34 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <div className="w-12 h-12 bg-rose-100 text-rose-700 rounded-2xl flex items-center justify-center text-xl">💸</div>
         </div>
 
-        <div className={`p-6 rounded-3xl border shadow-sm flex items-center justify-between ${netIncome >= 0 ? 'bg-blue-50/80 border-blue-100' : 'bg-amber-50/80 border-amber-100'}`}>
-          <div>
-            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${netIncome >= 0 ? 'text-blue-600' : 'text-amber-700'}`}>
-              অবশিষ্ট নিট আয় / লাভ
-            </p>
-            <h3 className={`text-2xl font-black ${netIncome >= 0 ? 'text-blue-700' : 'text-amber-700'}`}>
-              {netIncome >= 0 ? '+' : ''}৳ {netIncome.toLocaleString()}
-            </h3>
+        <div className={`p-6 rounded-3xl border shadow-sm flex flex-col justify-between ${netIncome >= 0 ? 'bg-blue-50/80 border-blue-100' : 'bg-amber-50/80 border-amber-100'}`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${netIncome >= 0 ? 'text-blue-600' : 'text-amber-700'}`}>
+                অবশিষ্ট নিট আয় / নেট প্রফিট
+              </p>
+              <h3 className={`text-2xl font-black ${netIncome >= 0 ? 'text-blue-700' : 'text-amber-700'}`}>
+                {netIncome >= 0 ? '+' : ''}৳ {netIncome.toLocaleString()}
+              </h3>
+            </div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${netIncome >= 0 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+              ⚖️
+            </div>
           </div>
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${netIncome >= 0 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-            ⚖️
+
+          <div className="mt-3 pt-2 border-t border-blue-200/50 flex items-center justify-between text-[10px] font-bold">
+            <span className="flex items-center gap-1.5 text-slate-600">
+              <span className={`w-2 h-2 rounded-full ${isSyncingDb ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'}`}></span>
+              {isSyncingDb ? 'ডাটাবেজে সেভ হচ্ছে...' : 'ডাটাবেজে নেট প্রফিট আপডেট করা হয়েছে'}
+            </span>
+            <button 
+              onClick={handleManualSync} 
+              disabled={isSyncingDb}
+              className="text-blue-700 hover:underline font-black flex items-center gap-1"
+              title="ডাটাবেজে নেট প্রফিট পুনরায় সিঙ্ক করুন"
+            >
+              🔄 {isSyncingDb ? 'সিঙ্ক...' : 'ডাটাবেজ সেভ'}
+            </button>
           </div>
         </div>
 
@@ -542,7 +625,22 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   </td>
                   <td className="px-8 py-6 text-right font-black text-green-600 text-base">৳ {Number(sale.amount).toLocaleString()}</td>
                   <td className="px-8 py-6 text-center">
-                    <button onClick={() => handleDelete(sale.id)} className="text-slate-300 hover:text-rose-600 transition-colors" title="রেকর্ডটি মুছুন">🗑️</button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => handleOpenEditModal(sale)} 
+                        className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors text-xs font-bold flex items-center gap-1" 
+                        title="বিক্রির তথ্য এডিট করুন"
+                      >
+                        ✏️ এডিট
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(sale.id)} 
+                        className="p-2 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-colors text-xs font-bold" 
+                        title="রেকর্ডটি মুছুন"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -565,7 +663,22 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <h4 className="font-black text-slate-800">{sale.ponds?.name || 'অজানা'}</h4>
                   <span className="text-xs font-black text-slate-600">🐟 {sale.species || 'মাছ'} {sale.item_name ? `(${sale.item_name})` : ''}</span>
                 </div>
-                <button onClick={() => handleDelete(sale.id)} className="w-8 h-8 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center text-xs">🗑️</button>
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => handleOpenEditModal(sale)} 
+                    className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold"
+                    title="এডিট করুন"
+                  >
+                    ✏️ এডিট
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(sale.id)} 
+                    className="w-8 h-8 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center text-xs"
+                    title="মুছুন"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
               <div className="flex justify-between items-center pt-1">
                 <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-black">{sale.count_sold || 0} পিস</span>
@@ -579,21 +692,25 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         </div>
       </div>
 
-      {/* Add Sale Modal */}
+      {/* Add / Edit Sale Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
           <div className="bg-white w-full max-w-lg rounded-[3rem] p-8 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-2xl font-black text-slate-800 text-center">মাছ বিক্রি তথ্য যোগ করুন</h3>
-            <p className="text-xs font-bold text-slate-400 text-center -mt-3">মাল্টিপল মাছ বেছে এককালীন দাম ও বিবরণ সেভ করুন</p>
+            <h3 className="text-2xl font-black text-slate-800 text-center">
+              {editingSaleId ? '✏️ মাছ বিক্রির তথ্য এডিট করুন' : '💰 মাছ বিক্রি তথ্য যোগ করুন'}
+            </h3>
+            <p className="text-xs font-bold text-slate-400 text-center -mt-3">
+              বিক্রিত মাছ বেছে নিন এবং বিক্রয় মূল্য প্রদান করুন
+            </p>
             
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">তারিখ</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">বিক্রির তারিখ</label>
                 <input 
                   type="date" 
                   value={newSale.sale_date} 
                   onChange={e => setNewSale({...newSale, sale_date: e.target.value})} 
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500"
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -602,79 +719,125 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 <select 
                   value={newSale.pond_id} 
                   onChange={e => handlePondChange(e.target.value)} 
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500"
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm"
                 >
                   <option value="">পুকুর বেছে নিন</option>
                   {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
 
-              {/* Multi-Species Selection Box */}
+              {/* Species Tick-Mark Checkboxes */}
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">২. বিক্রিত মাছ সিলেক্ট করুন (মাল্টিপল মাছ বেছে নিন)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                  ২. বিক্রিত মাছ সিলেক্ট করুন (টিক মার্ক দিন)
+                </label>
                 
                 {!newSale.pond_id ? (
-                  <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 font-bold">আগে একটি পুকুর সিলেক্ট করুন</div>
-                ) : availableSpeciesList.length === 0 ? (
-                  <p className="text-[11px] text-amber-600 font-bold p-3 bg-amber-50 rounded-2xl">⚠️ এই পুকুরে কোনো মাছ মজুদ করা নেই। আগে 'আমার পুকুরসমূহ' থেকে মাছ পোনা যোগ করুন।</p>
+                  <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 font-bold border border-slate-200">
+                    আগে একটি পুকুর সিলেক্ট করুন
+                  </div>
                 ) : (
-                  <div className="space-y-2 max-h-52 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                    {availableSpeciesList.map((st: any) => {
-                      const spData = multiSpeciesSelect[st.species] || { selected: false, count: '' };
-                      return (
-                        <div key={st.id || st.species} className={`p-3 rounded-xl border transition-all space-y-2 ${spData.selected ? 'bg-green-50/80 border-green-300' : 'bg-white border-slate-200'}`}>
-                          <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2.5 text-xs font-black text-slate-800 cursor-pointer">
-                              <input 
-                                type="checkbox"
-                                checked={spData.selected}
-                                onChange={e => {
-                                  const checked = e.target.checked;
-                                  setMultiSpeciesSelect(prev => ({
-                                    ...prev,
-                                    [st.species]: { selected: checked, count: checked ? (prev[st.species]?.count || '') : '' }
-                                  }));
-                                }}
-                                className="w-4 h-4 accent-green-600 rounded cursor-pointer"
-                              />
-                              🐟 {st.species}
-                            </label>
-                            <span className="text-[11px] font-bold text-slate-500">মজুদ: <strong className="text-blue-600">{st.count || 0} পিস</strong></span>
-                          </div>
+                  <div className="space-y-2.5">
+                    {availableSpeciesList.length > 0 && (
+                      <div className="space-y-2 max-h-48 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                        <p className="text-[11px] font-bold text-slate-500 mb-1">
+                          পুকুরে মজুদ থাকা মাছ (যেগুলো বিক্রি হয়েছে টিক দিন):
+                        </p>
+                        {availableSpeciesList.map((st: any) => {
+                          const isSelected = multiSpeciesSelect[st.species]?.selected || false;
+                          return (
+                            <label 
+                              key={st.id || st.species} 
+                              className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                                isSelected ? 'bg-green-50 border-green-400 shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <input 
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={e => {
+                                    const checked = e.target.checked;
+                                    const updated = {
+                                      ...multiSpeciesSelect,
+                                      [st.species]: { selected: checked }
+                                    };
+                                    setMultiSpeciesSelect(updated);
 
-                          {spData.selected && (
-                            <div className="flex items-center gap-2 pt-1 border-t border-green-100">
-                              <span className="text-[11px] font-black text-slate-600 min-w-fit">কত পিস বিক্রি:</span>
-                              <input 
-                                type="number"
-                                placeholder="উদা: ৫০"
-                                value={spData.count}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setMultiSpeciesSelect(prev => ({
-                                    ...prev,
-                                    [st.species]: { ...prev[st.species], count: val }
-                                  }));
-                                }}
-                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-blue-600 outline-none focus:ring-1 focus:ring-green-500"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                                    const selectedNames = Object.entries(updated)
+                                      .filter(([_, v]: [string, any]) => v.selected)
+                                      .map(([sp]) => sp);
+                                    setNewSale(prev => ({ ...prev, species: selectedNames.join(' + ') }));
+                                  }}
+                                  className="w-5 h-5 accent-green-600 rounded cursor-pointer"
+                                />
+                                <span className="text-xs font-black text-slate-800">🐟 {st.species}</span>
+                              </div>
+                              {st.count ? (
+                                <span className="text-[11px] font-bold text-slate-400">
+                                  মজুদ: <strong className="text-blue-600">{st.count} পিস</strong>
+                                </span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                        মাছের ক্যাটাগরি / নাম (এডিট বা পরিবর্তন করুন)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="উদা: রুই + কাতলা" 
+                        value={newSale.species} 
+                        onChange={e => setNewSale({...newSale, species: e.target.value})} 
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm" 
+                      />
+                    </div>
                   </div>
                 )}
               </div>
 
+              {/* Quantity and Weight inputs (Optional) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    মোট বিক্রিত পিস (ঐচ্ছিক)
+                  </label>
+                  <input 
+                    type="number" 
+                    placeholder="উদা: ১০০" 
+                    value={newSale.count_sold} 
+                    onChange={e => setNewSale({...newSale, count_sold: e.target.value})} 
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    মোট ওজন কেজি (ঐচ্ছিক)
+                  </label>
+                  <input 
+                    type="number" 
+                    placeholder="উদা: ৫০" 
+                    value={newSale.weight} 
+                    onChange={e => setNewSale({...newSale, weight: e.target.value})} 
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm" 
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">৩. এককালীন মোট বিক্রয় মূল্য (৳)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                  ৩. এককালীন মোট বিক্রয় মূল্য (৳)
+                </label>
                 <input 
                   type="number" 
                   placeholder="উদা: ৪৫০০০" 
                   value={newSale.amount} 
                   onChange={e => setNewSale({...newSale, amount: e.target.value})} 
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-black text-green-600 text-xl focus:ring-2 focus:ring-green-500" 
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-black text-green-600 text-xl focus:ring-2 focus:ring-green-500" 
                 />
               </div>
 
@@ -685,15 +848,27 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   placeholder="উদা: স্থানীয় পাইকার করিমের কাছে চালানের বিক্রি" 
                   value={newSale.item_name} 
                   onChange={e => setNewSale({...newSale, item_name: e.target.value})} 
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm" 
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-green-500 text-sm" 
                 />
               </div>
             </div>
 
             <div className="flex gap-4 pt-2">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAdd} disabled={saving} className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black shadow-lg shadow-green-200">
-                {saving ? 'সংরক্ষণ হচ্ছে...' : 'বিক্রি ও অটো-মাইনাস'}
+              <button 
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingSaleId(null);
+                }} 
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black"
+              >
+                বাতিল
+              </button>
+              <button 
+                onClick={handleSaveSale} 
+                disabled={saving} 
+                className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black shadow-lg shadow-green-200 hover:bg-green-700 transition-all"
+              >
+                {saving ? 'সংরক্ষণ হচ্ছে...' : (editingSaleId ? 'আপডেট সেভ করুন' : 'বিক্রি সেভ করুন')}
               </button>
             </div>
           </div>
@@ -873,11 +1048,12 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                     <th className="px-6 py-4 text-center">বিক্রিত পিস</th>
                     <th className="px-6 py-4 text-right">মূল্য (৳)</th>
                     <th className="px-6 py-4">বিবরণ</th>
+                    <th className="px-6 py-4 text-center">অ্যাকশন</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-slate-700 text-xs font-bold">
                   {filteredSales.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-16 text-slate-400 italic">কোন বিক্রির বিবরণ পাওয়া যায়নি</td></tr>
+                    <tr><td colSpan={7} className="text-center py-16 text-slate-400 italic">কোন বিক্রির বিবরণ পাওয়া যায়নি</td></tr>
                   ) : filteredSales.map(s => (
                     <tr key={s.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4">{new Date(s.date).toLocaleDateString('bn-BD')}</td>
@@ -886,6 +1062,27 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                       <td className="px-6 py-4 text-center font-black">{s.count_sold || 0} পিস</td>
                       <td className="px-6 py-4 text-right font-black text-green-600">৳ {Number(s.amount).toLocaleString()}</td>
                       <td className="px-6 py-4 text-slate-400">{s.item_name || '-'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setIsDetailModalOpen(false);
+                              handleOpenEditModal(s);
+                            }}
+                            className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100"
+                            title="বিক্রি এডিট করুন"
+                          >
+                            ✏️ এডিট
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(s.id)}
+                            className="p-1 bg-rose-50 text-rose-500 rounded-lg text-xs hover:bg-rose-100"
+                            title="মুছুন"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

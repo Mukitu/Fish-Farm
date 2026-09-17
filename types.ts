@@ -21,6 +21,7 @@ export interface UserProfile {
   farm_name?: string;
   full_name?: string;
   avatar_url?: string;
+  net_profit?: number;
 }
 
 export interface Pond {
@@ -34,6 +35,16 @@ export interface Pond {
   total_count?: number;
   total_weight?: number;
   avg_weight?: number;
+  net_profit?: number;
+}
+
+export interface FinancialSummary {
+  id?: string;
+  user_id: string;
+  total_income: number;
+  total_expense: number;
+  net_profit: number;
+  updated_at?: string;
 }
 
 export interface InventoryItem {

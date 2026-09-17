@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Pond } from '../types';
 import { exportReportToPdf } from '../utils/pdfExport';
+import { syncFinancialNetProfit } from '../utils/financialSync';
 
 const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -37,8 +38,14 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     try {
       const { data: p } = await supabase.from('ponds').select('*').eq('user_id', user.id);
       const { data: e } = await supabase.from('expenses').select('*, ponds(name)').eq('user_id', user.id).order('date', { ascending: false });
+      const { data: s } = await supabase.from('sales').select('*').eq('user_id', user.id);
+
       if (p) setPonds(p as Pond[]);
       if (e) setExpenses(e);
+
+      if (user.id !== 'guest-id' && p && e) {
+        await syncFinancialNetProfit(user.id, s || [], e || [], p || []);
+      }
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 

@@ -274,6 +274,27 @@ BEGIN
     END IF;
 END $$;
 
+-- Ensure net_profit column exists on ponds and profiles
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ponds' AND column_name='net_profit') THEN
+        ALTER TABLE public.ponds ADD COLUMN net_profit DECIMAL DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='net_profit') THEN
+        ALTER TABLE public.profiles ADD COLUMN net_profit DECIMAL DEFAULT 0;
+    END IF;
+END $$;
+
+-- ১৪. অর্থনৈতিক সংক্ষিপ্ত হিসাব (Financial Summaries)
+CREATE TABLE IF NOT EXISTS public.financial_summaries (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL UNIQUE,
+    total_income DECIMAL DEFAULT 0,
+    total_expense DECIMAL DEFAULT 0,
+    net_profit DECIMAL DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- RLS পলিসি প্রয়োগ (গাইড টেবিল সবার জন্য রিড-অনলি)
 ALTER TABLE public.farming_guides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.farming_timeline ENABLE ROW LEVEL SECURITY;
