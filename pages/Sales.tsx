@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
+import { exportReportToPdf } from '../utils/pdfExport';
 
 const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [sales, setSales] = useState<any[]>([]);
@@ -202,23 +203,69 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const totalSoldCount = filteredSales.reduce((acc, curr) => acc + Number(curr.count_sold || 0), 0);
   const totalSaleAmount = filteredSales.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
 
+  const handleExportSalesPdf = () => {
+    const targetSales = selectedFilterPond === 'all' 
+      ? sales 
+      : sales.filter(s => s.pond_id === selectedFilterPond);
+
+    if (targetSales.length === 0) {
+      alert("কোনো বিক্রির তথ্য পাওয়া যায়নি!");
+      return;
+    }
+
+    const tableRows: (string | number)[][] = targetSales.map(s => [
+      new Date(s.date).toLocaleDateString('bn-BD'),
+      s.ponds?.name || 'অজানা',
+      s.species || 'মাছ',
+      `${s.count_sold || 0} পিস`,
+      s.amount ? `৳ ${Number(s.amount).toLocaleString()}` : 'ঐচ্ছিক',
+      s.item_name || '-'
+    ]);
+
+    const totalSoldCount = targetSales.reduce((acc, curr) => acc + Number(curr.count_sold || 0), 0);
+    const totalAmount = targetSales.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
+    const selectedPondName = ponds.find(p => p.id === selectedFilterPond)?.name || 'সকল পুকুর';
+
+    exportReportToPdf({
+      title: 'মাছ বিক্রির বিস্তারিত স্টেটমেন্ট',
+      farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
+      userName: user.full_name || user.email,
+      filterLabel: selectedPondName,
+      summaryCards: [
+        { label: 'মোট বিক্রির লেনদেন', value: `${targetSales.length} টি` },
+        { label: 'মোট বিক্রিত মাছ', value: `${totalSoldCount.toLocaleString()} পিস`, color: '#2563eb' },
+        { label: 'মোট বিক্রয় আয়', value: `৳ ${totalAmount.toLocaleString()}`, color: '#059669' }
+      ],
+      tableHeaders: ['তারিখ', 'পুকুরের নাম', 'মাছের নাম', 'বিক্রিত পিস', 'বিক্রয় মূল্য', 'বিবরণ/ক্রেতা'],
+      tableRows: tableRows,
+      footerNotes: 'এই রিপোর্টটি সরাসরি পিডিএফ ডাউনলোড বা সোশ্যাল মিডিয়ায় শেয়ার করা যাবে।'
+    });
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">মাছ বিক্রি ও হিসাব</h1>
-          <p className="text-xs font-bold text-slate-400 mt-1">পুকুর ভিত্তিক বিক্রি সংরক্ষণ, মজুদ অটো-মাইনাস ও হিস্ট্রি</p>
+          <p className="text-xs font-bold text-slate-400 mt-1">পুকুর ভিত্তিক বিক্রি সংরক্ষণ, মজুদ অটো-মাইনাস ও পিডিএফ ডাউনলোড</p>
         </div>
-        <div className="flex gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2.5 w-full sm:w-auto">
+          <button 
+            onClick={handleExportSalesPdf} 
+            className="flex-1 sm:flex-initial px-4 py-3.5 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+          >
+            📄 পিডিএফ ডাউনলোড
+          </button>
           <button 
             onClick={() => setIsDetailModalOpen(true)} 
-            className="flex-1 sm:flex-initial px-5 py-3.5 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-initial px-4 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-black hover:bg-slate-200 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
           >
             🔍 ভিউ ডিটেইলস
           </button>
           <button 
             onClick={() => setIsModalOpen(true)} 
-            className="flex-1 sm:flex-initial px-6 py-3.5 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-105 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-3.5 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 hover:scale-105 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
           >
             💰 বিক্রি যোগ করুন
           </button>
@@ -427,17 +474,26 @@ const SalesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <button onClick={() => setIsDetailModalOpen(false)} className="w-10 h-10 bg-slate-100 text-slate-500 rounded-xl font-bold">✕</button>
             </div>
 
-            {/* Filter by pond */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-black text-slate-400 uppercase">পুকুর ফিল্টার:</span>
-              <select 
-                value={selectedFilterPond} 
-                onChange={e => setSelectedFilterPond(e.target.value)} 
-                className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none"
+            {/* Filter by pond and PDF download */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-black text-slate-400 uppercase">পুকুর ফিল্টার:</span>
+                <select 
+                  value={selectedFilterPond} 
+                  onChange={e => setSelectedFilterPond(e.target.value)} 
+                  className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none"
+                >
+                  <option value="all">সকল পুকুর</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <button 
+                onClick={handleExportSalesPdf} 
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black shadow hover:bg-slate-800 transition"
               >
-                <option value="all">সকল পুকুর</option>
-                {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+                📄 এই স্টেটমেন্ট ডাউনলোড (PDF)
+              </button>
             </div>
 
             {/* History Table */}

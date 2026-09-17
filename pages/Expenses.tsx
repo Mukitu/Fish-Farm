@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Pond } from '../types';
+import { exportReportToPdf } from '../utils/pdfExport';
 
 const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -22,12 +23,12 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         { id: '5', name: 'পুকুর ৫ (কার্প)' }
       ] as any);
       setExpenses([
-        { id: 'e1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, item_name: 'মাছের খাবার (নারিশ)', amount: 12000 },
-        { id: 'e2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, item_name: 'চুন ও সার', amount: 3500 },
-        { id: 'e3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, item_name: 'খাবার (মেগা)', amount: 18000 },
-        { id: 'e4', date: new Date().toISOString(), ponds: { name: 'পুকুর ৪ (তেলাপিয়া)' }, item_name: 'পোনা ক্রয়', amount: 5000 },
-        { id: 'e5', date: new Date().toISOString(), ponds: { name: 'পুকুর ৫ (কার্প)' }, item_name: 'শ্রমিক মজুরি', amount: 4500 },
-        { id: 'e6', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, item_name: 'ভিটামিন ও ঔষধ', amount: 2600 }
+        { id: 'e1', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, category: 'খাবার', item_name: 'মাছের খাবার (নারিশ)', amount: 12000 },
+        { id: 'e2', date: new Date().toISOString(), ponds: { name: 'পুকুর ২ (কাতলা)' }, category: 'প্রস্তুতি', item_name: 'চুন ও সার', amount: 3500 },
+        { id: 'e3', date: new Date().toISOString(), ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, category: 'খাবার', item_name: 'খাবার (মেগা)', amount: 18000 },
+        { id: 'e4', date: new Date().toISOString(), ponds: { name: 'পুকুর ৪ (তেলাপিয়া)' }, category: 'পোনা', item_name: 'পোনা ক্রয়', amount: 5000 },
+        { id: 'e5', date: new Date().toISOString(), ponds: { name: 'পুকুর ৫ (কার্প)' }, category: 'শ্রমিক', item_name: 'শ্রমিক মজুরি', amount: 4500 },
+        { id: 'e6', date: new Date().toISOString(), ponds: { name: 'পুকুর ১ (রুই)' }, category: 'মেডিসিন', item_name: 'ভিটামিন ও ঔষধ', amount: 2600 }
       ]);
       setLoading(false);
       return;
@@ -59,11 +60,57 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleExportExpensesPdf = () => {
+    if (expenses.length === 0) {
+      alert("কোনো খরচের তথ্য পাওয়া যায়নি!");
+      return;
+    }
+
+    const tableRows = expenses.map(exp => [
+      new Date(exp.date).toLocaleDateString('bn-BD'),
+      exp.ponds?.name || 'অজানা',
+      exp.category || 'সাধারণ খরচ',
+      exp.item_name || '-',
+      `৳ ${Number(exp.amount).toLocaleString()}`
+    ]);
+
+    const totalExpAmount = expenses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
+    exportReportToPdf({
+      title: 'খামার খরচের বিবরণী (Expenses Statement)',
+      farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
+      userName: user.full_name || user.email,
+      summaryCards: [
+        { label: 'মোট খরচের হিসাব', value: `${expenses.length} টি রেকর্ড` },
+        { label: 'মোট ব্যয়ের পরিমাণ', value: `৳ ${totalExpAmount.toLocaleString()}`, color: '#e11d48' }
+      ],
+      tableHeaders: ['তারিখ', 'পুকুর', 'ক্যাটাগরি', 'বিবরণ', 'টাকার পরিমাণ'],
+      tableRows: tableRows,
+      footerNotes: 'এই রিপোর্টটি সরাসরি প্রিন্ট বা ফোনে পিডিএফ সেভ করার জন্য প্রস্তুত।'
+    });
+  };
+
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-black text-slate-800 tracking-tight">খরচের হিসাব</h1>
-        <button onClick={() => setIsModalOpen(true)} className="px-6 py-4 bg-rose-600 text-white rounded-2xl font-black shadow-xl">➕ খরচ যোগ</button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">খরচের হিসাব</h1>
+          <p className="text-xs font-bold text-slate-400 mt-1">খামারের যাবতীয় খরচের বিবরণী ও পিডিএফ সেভ</p>
+        </div>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <button 
+            onClick={handleExportExpensesPdf} 
+            className="flex-1 sm:flex-initial px-5 py-3.5 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+          >
+            📄 পিডিএফ ডাউনলোড
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)} 
+            className="flex-1 sm:flex-initial px-6 py-3.5 bg-rose-600 text-white rounded-2xl font-black shadow-xl shadow-rose-100 hover:scale-105 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+          >
+            ➕ খরচ যোগ
+          </button>
+        </div>
       </div>
 
       <div className="bg-white md:rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm rounded-[2rem]">

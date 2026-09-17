@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, InventoryItem, Pond } from '../types';
+import { exportReportToPdf } from '../utils/pdfExport';
 
 const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [logs, setLogs] = useState<any[]>([]);
@@ -184,6 +185,42 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
+  const handleExportFeedPdf = () => {
+    const filtered = filterPond === 'all' ? logs : logs.filter(l => l.pond_id === filterPond);
+    if (filtered.length === 0) {
+      alert("কোনো খাবার প্রয়োগের রেকর্ড পাওয়া যায়নি!");
+      return;
+    }
+
+    const tableRows = filtered.map(log => [
+      new Date(log.date).toLocaleDateString('bn-BD'),
+      log.time || 'সকাল',
+      log.ponds?.name || 'অজানা',
+      log.inventory?.name || 'খাবার',
+      `${log.amount || 0} কেজি (${log.bags || 0} বস্তা)`
+    ]);
+
+    const totalAmountKg = filtered.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+    const totalBags = filtered.reduce((acc, curr) => acc + Number(curr.bags || 0), 0);
+
+    const selectedPondName = ponds.find(p => p.id === filterPond)?.name || 'সকল পুকুর';
+
+    exportReportToPdf({
+      title: 'খাবার প্রয়োগ ও ট্র্যাকিং স্টেটমেন্ট',
+      farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
+      userName: user.full_name || user.email,
+      filterLabel: selectedPondName,
+      summaryCards: [
+        { label: 'মোট প্রয়োগ সংখ্যা', value: `${filtered.length} বার` },
+        { label: 'মোট প্রয়োগ করা খাবার', value: `${totalAmountKg.toLocaleString()} কেজি`, color: '#2563eb' },
+        { label: 'মোট বস্তা', value: `${totalBags.toFixed(1)} বস্তা`, color: '#059669' }
+      ],
+      tableHeaders: ['তারিখ', 'সময়', 'পুকুরের নাম', 'খাবারের নাম', 'পরিমাণ (কেজি/বস্তা)'],
+      tableRows: tableRows,
+      footerNotes: 'স্মার্ট চাষিয়া খাবার ট্র্যাকার সিস্টেম দ্বারা তৈরিকৃত।'
+    });
+  };
+
   const filteredLogs = filterPond === 'all' ? logs : logs.filter(l => l.pond_id === filterPond);
 
   return (
@@ -191,14 +228,22 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">খাবার প্রয়োগ লগ</h1>
-          <p className="text-slate-500 font-bold">প্রতিদিনের খাবার প্রদানের সঠিক হিসাব</p>
+          <p className="text-slate-500 font-bold">প্রতিদিনের খাবার প্রদানের সঠিক হিসাব ও পিডিএফ রিপোর্ট</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)} 
-          className="px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all"
-        >
-          ➕ নতুন এন্ট্রি
-        </button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleExportFeedPdf} 
+            className="flex-1 md:flex-initial px-6 py-4 bg-slate-900 text-white rounded-3xl font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+          >
+            📄 পিডিএফ ডাউনলোড
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)} 
+            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all text-xs md:text-sm"
+          >
+            ➕ নতুন এন্ট্রি
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Pond } from '../types';
+import { exportReportToPdf } from '../utils/pdfExport';
 
 const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<any[]>([]);
@@ -10,6 +11,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [selectedPond, setSelectedPond] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedPdfPondId, setSelectedPdfPondId] = useState<string>('all');
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPond, setEditingPond] = useState<{ id: string; name: string; area: string; fish_type: string }>({ id: '', name: '', area: '', fish_type: '' });
@@ -215,6 +218,54 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     } catch (err: any) { alert(err.message); } finally { setSaving(false); }
   };
 
+  const handleExportPondPdf = (targetPondId?: string) => {
+    const targetPonds = targetPondId && targetPondId !== 'all' 
+      ? ponds.filter(p => p.id === targetPondId) 
+      : ponds;
+
+    if (targetPonds.length === 0) {
+      alert("কোনো পুকুরের তথ্য পাওয়া যায়নি!");
+      return;
+    }
+
+    const tableRows: (string | number)[][] = [];
+
+    targetPonds.forEach(p => {
+      const speciesList = p.stocking_records && p.stocking_records.length > 0
+        ? p.stocking_records.map((s: any) => `${s.species} (${s.count || 0} পিস${s.total_weight_kg ? ', ' + s.total_weight_kg + ' কেজি' : ''})`).join(' | ')
+        : 'কোনো মাছের স্টক নেই';
+
+      tableRows.push([
+        p.name,
+        `${p.area} শতাংশ`,
+        speciesList,
+        `${p.total_count || 0} পিস`,
+        `${p.total_weight || 0} কেজি`
+      ]);
+    });
+
+    const totalArea = targetPonds.reduce((acc, curr) => acc + Number(curr.area || 0), 0);
+    const totalFishCount = targetPonds.reduce((acc, curr) => acc + Number(curr.total_count || 0), 0);
+    const totalFishWeight = targetPonds.reduce((acc, curr) => acc + Number(curr.total_weight || 0), 0);
+
+    exportReportToPdf({
+      title: 'পুকুর ও মাছের মজুদ স্টেটমেন্ট',
+      farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
+      userName: user.full_name || user.email,
+      filterLabel: targetPondId && targetPondId !== 'all' ? targetPonds[0]?.name : 'সকল পুকুর',
+      summaryCards: [
+        { label: 'মোট পুকুর', value: `${targetPonds.length} টি` },
+        { label: 'মোট আয়তন', value: `${totalArea} শতাংশ` },
+        { label: 'মোট মাছের সংখ্যা', value: `${totalFishCount.toLocaleString()} পিস`, color: '#2563eb' },
+        { label: 'মোট ওজন', value: `${totalFishWeight.toLocaleString()} কেজি`, color: '#059669' }
+      ],
+      tableHeaders: ['পুকুরের নাম', 'আয়তন', 'মাছের বিবরণ/ক্যাটাগরি', 'মোট পিস', 'মোট ওজন'],
+      tableRows: tableRows,
+      footerNotes: 'এই রিপোর্টটি ফোন বা পিসিতে সেভ করার জন্য ব্রাউজারের প্রিন্ট উইন্ডো থেকে "Save as PDF" অপশন ব্যবহার করুন।'
+    });
+    setIsPdfModalOpen(false);
+  };
+
   return (
     <div className="space-y-6 md:space-y-8 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -222,7 +273,20 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
           <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">আমার পুকুরসমূহ</h1>
           <p className="text-slate-500 font-bold text-sm md:text-base">প্যাকেজ ব্যবহার: {ponds.length} / {user.max_ponds === 999 ? 'আনলিমিটেড' : user.max_ponds}</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-8 py-4 bg-blue-600 text-white rounded-2xl md:rounded-3xl font-black shadow-xl shadow-blue-200 transition-transform active:scale-95">➕ নতুন পুকুর</button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button 
+            onClick={() => setIsPdfModalOpen(true)} 
+            className="flex-1 md:flex-initial px-6 py-4 bg-slate-800 text-white rounded-2xl md:rounded-3xl font-black shadow-lg hover:bg-slate-700 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+          >
+            📄 পিডিএফ ডাউনলোড
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)} 
+            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-2xl md:rounded-3xl font-black shadow-xl shadow-blue-200 transition-transform active:scale-95 text-xs md:text-sm"
+          >
+            ➕ নতুন পুকুর
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
@@ -442,6 +506,36 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               <button onClick={() => setIsStockModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
               <button onClick={handleStocking} disabled={saving} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200">
                 {saving ? 'সেভ হচ্ছে...' : 'মজুদ সম্পন্ন'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* PDF Export Modal */}
+      {isPdfModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 space-y-6 animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-center text-slate-800">পিডিএফ স্টেটমেন্ট ডাউনলোড</h3>
+            <p className="text-center text-xs font-bold text-slate-400 -mt-4">যে পুকুরের স্টেটমেন্ট ডাউনলোড করবেন তা বেছে নিন</p>
+            
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">পুকুর ফিল্টার করুন</label>
+              <select 
+                value={selectedPdfPondId} 
+                onChange={e => setSelectedPdfPondId(e.target.value)} 
+                className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">সকল পুকুর একত্রে</option>
+                {ponds.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.area} শতাংশ)</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setIsPdfModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black">বাতিল</button>
+              <button onClick={() => handleExportPondPdf(selectedPdfPondId)} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg">
+                📄 ডাউনলোড করুন
               </button>
             </div>
           </div>

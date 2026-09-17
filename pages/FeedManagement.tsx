@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, InventoryItem, Pond } from '../types';
+import { exportReportToPdf } from '../utils/pdfExport';
 
 const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -125,14 +126,61 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   const totalCost = filteredPurchases.reduce((a, b) => a + Number(b.total_price), 0);
   const totalWeightInStock = filteredPurchases.reduce((a, b) => a + Number(b.total_weight), 0);
 
+  const handleExportFeedPurchasesPdf = () => {
+    const filtered = filterPond ? purchases.filter(p => p.pond_id === filterPond) : purchases;
+    if (filtered.length === 0) {
+      alert("কোনো খাবার ক্রয়ের তথ্য পাওয়া যায়নি!");
+      return;
+    }
+
+    const tableRows = filtered.map(p => [
+      new Date(p.purchase_date).toLocaleDateString('bn-BD'),
+      p.ponds?.name || 'সাধারণ গুদাম',
+      p.feed_name,
+      `${p.bags} বস্তা (${p.total_weight} কেজি)`,
+      `৳ ${Number(p.price_per_bag).toLocaleString()}`,
+      `৳ ${Number(p.total_price).toLocaleString()}`
+    ]);
+
+    const totalSpent = filtered.reduce((acc, curr) => acc + Number(curr.total_price || 0), 0);
+    const totalBags = filtered.reduce((acc, curr) => acc + Number(curr.bags || 0), 0);
+
+    exportReportToPdf({
+      title: 'খাবার ক্রয় ও মজুদ স্টেটমেন্ট',
+      farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
+      userName: user.full_name || user.email,
+      summaryCards: [
+        { label: 'মোট ক্রয় লেনদেন', value: `${filtered.length} টি` },
+        { label: 'মোট আমদানিকৃত বস্তা', value: `${totalBags} বস্তা` },
+        { label: 'মোট ব্যয়িত অর্থ', value: `৳ ${totalSpent.toLocaleString()}`, color: '#2563eb' }
+      ],
+      tableHeaders: ['তারিখ', 'পুকুর', 'খাবারের নাম', 'পরিমাণ', 'বস্তাপ্রতি দাম', 'মোট দাম (৳)'],
+      tableRows: tableRows,
+      footerNotes: 'স্মার্ট চাষিয়া খাবার ফিডার ও গুদাম হিস্ট্রি থেকে প্রস্তুতকৃত।'
+    });
+  };
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">খাবার ব্যবস্থাপনা</h1>
-          <p className="text-slate-500 font-bold">ক্রয় ইতিহাস ও স্টক ট্র্যাকিং</p>
+          <p className="text-slate-500 font-bold">ক্রয় ইতিহাস, গুদাম স্টক ট্র্যাকিং ও পিডিএফ স্টেটমেন্ট</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 hover:scale-105 transition-all">➕ স্টক যোগ করুন</button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleExportFeedPurchasesPdf} 
+            className="flex-1 md:flex-initial px-6 py-4 bg-slate-900 text-white rounded-[2rem] font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+          >
+            📄 পিডিএফ ডাউনলোড
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)} 
+            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm"
+          >
+            ➕ স্টক যোগ করুন
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
