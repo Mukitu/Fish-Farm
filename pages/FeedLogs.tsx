@@ -108,16 +108,13 @@ const FeedLogsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     try {
       const { data: pondDetail } = await supabase
         .from('ponds')
-        .select(`*, stocking_records(*), growth_records(*)`)
+        .select(`*, stocking_records(*)`)
         .eq('id', pondId)
         .single();
 
       if (pondDetail) {
         const totalCount = pondDetail.stocking_records?.reduce((a: any, b: any) => a + Number(b.count), 0) || 0;
-        const sortedGrowth = pondDetail.growth_records?.sort((a: any, b: any) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-        const latestWeight = sortedGrowth?.[0]?.avg_weight_gm || pondDetail.stocking_records?.[0]?.avg_weight_gm || 0;
+        const latestWeight = pondDetail.stocking_records?.[0]?.avg_weight_gm || 0;
         
         if (totalCount > 0 && latestWeight > 0) {
           const biomassKg = (totalCount * latestWeight) / 1000;

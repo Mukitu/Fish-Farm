@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { UserProfile, InventoryItem, Pond } from '../types';
+import { UserProfile, Pond } from '../types';
 import { exportReportToPdf } from '../utils/pdfExport';
 
 const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
@@ -9,6 +8,7 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [ponds, setPonds] = useState<Pond[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [filterPond, setFilterPond] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -26,6 +26,41 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      if (user.id === 'guest-id') {
+        setPonds([
+          { id: 'p1', name: 'পুকুর ১ (রুই)' } as any,
+          { id: 'p2', name: 'পুকুর ২ (কাতলা)' } as any
+        ]);
+        setPurchases([
+          {
+            id: 'fp-1',
+            purchase_date: new Date().toISOString().split('T')[0],
+            pond_id: null,
+            ponds: null,
+            feed_name: 'নারিশ ফিড (গ্রোয়ার)',
+            bags: 10,
+            kg_per_bag: 25,
+            price_per_bag: 2200,
+            total_weight: 250,
+            total_price: 22000
+          },
+          {
+            id: 'fp-2',
+            purchase_date: new Date().toISOString().split('T')[0],
+            pond_id: 'p1',
+            ponds: { name: 'পুকুর ১ (রুই)' },
+            feed_name: 'মেগা ফিড (স্টার্টার)',
+            bags: 5,
+            kg_per_bag: 25,
+            price_per_bag: 2100,
+            total_weight: 125,
+            total_price: 10500
+          }
+        ]);
+        setLoading(false);
+        return;
+      }
+
       const { data: pondData } = await supabase.from('ponds').select('*');
       const { data: purchaseData } = await supabase.from('feed_purchases')
         .select('*, ponds(name)')
@@ -40,71 +75,151 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
-  const handleAddPurchase = async () => {
+  const handleOpenAddModal = () => {
+    setEditingPurchaseId(null);
+    setNewPurchase({
+      pond_id: '',
+      feed_name: '',
+      bags: '',
+      kg_per_bag: '২৫',
+      price_per_bag: '',
+      date: new Date().toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (p: any) => {
+    setEditingPurchaseId(p.id);
+    setNewPurchase({
+      pond_id: p.pond_id || '',
+      feed_name: p.feed_name || '',
+      bags: p.bags ? String(p.bags) : '',
+      kg_per_bag: p.kg_per_bag ? String(p.kg_per_bag) : '২৫',
+      price_per_bag: p.price_per_bag ? String(p.price_per_bag) : '',
+      date: p.purchase_date || new Date().toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSavePurchase = async () => {
     const { pond_id, feed_name, bags, kg_per_bag, price_per_bag, date } = newPurchase;
     if (!feed_name || !bags || !kg_per_bag || !price_per_bag) {
-      alert("সবগুলো তথ্য সঠিকভাবে দিন!");
+      alert("খাবারের নাম, বস্তা সংখ্যা, কেজি ও বস্তার দাম সঠিকভাবে দিন!");
       return;
     }
 
     setSaving(true);
     const totalWeight = parseFloat(bags) * parseFloat(kg_per_bag);
     const totalPrice = parseFloat(bags) * parseFloat(price_per_bag);
+    const selectedPondObj = ponds.find(p => p.id === pond_id);
 
     try {
-      // ১. ক্রয় ইতিহাসে সেভ
-      const { error: pError } = await supabase.from('feed_purchases').insert([{
-        user_id: user.id,
-        pond_id: pond_id || null,
-        feed_name,
-        bags: parseInt(bags),
-        kg_per_bag: parseFloat(kg_per_bag),
-        price_per_bag: parseFloat(price_per_bag),
-        total_weight: totalWeight,
-        total_price: totalPrice,
-        purchase_date: date
-      }]);
+      if (editingPurchaseId) {
+        if (user.id === 'guest-id') {
+          setPurchases(prev => prev.map(item => {
+            if (item.id === editingPurchaseId) {
+              return {
+                ...item,
+                pond_id: pond_id || null,
+                ponds: selectedPondObj ? { name: selectedPondObj.name } : null,
+                feed_name,
+                bags: parseInt(bags),
+                kg_per_bag: parseFloat(kg_per_bag),
+                price_per_bag: parseFloat(price_per_bag),
+                total_weight: totalWeight,
+                total_price: totalPrice,
+                purchase_date: date
+              };
+            }
+            return item;
+          }));
+        } else {
+          const { error: updErr } = await supabase.from('feed_purchases').update({
+            pond_id: pond_id || null,
+            feed_name,
+            bags: parseInt(bags),
+            kg_per_bag: parseFloat(kg_per_bag),
+            price_per_bag: parseFloat(price_per_bag),
+            total_weight: totalWeight,
+            total_price: totalPrice,
+            purchase_date: date
+          }).eq('id', editingPurchaseId);
 
-      if (pError) throw pError;
+          if (updErr) throw updErr;
+        }
 
-      // ২. ইনভেন্টরি (গুদাম) স্টক আপডেট
-      const { data: existingStock } = await supabase.from('inventory')
-        .select('*')
-        .eq('name', feed_name)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existingStock) {
-        const { error: updError } = await supabase.from('inventory')
-          .update({ quantity: Number(existingStock.quantity) + totalWeight })
-          .eq('id', existingStock.id);
-        if (updError) throw updError;
+        alert("✅ খাবার ক্রয়ের বিবরণ সফলভাবে আপডেট করা হয়েছে!");
       } else {
-        const { error: insError } = await supabase.from('inventory').insert([{
-          user_id: user.id,
-          name: feed_name,
-          quantity: totalWeight,
-          unit: 'কেজি',
-          type: 'খাবার',
-          low_stock_threshold: 50
-        }]);
-        if (insError) throw insError;
+        if (user.id === 'guest-id') {
+          const newRec = {
+            id: 'fp-' + Date.now(),
+            purchase_date: date,
+            pond_id: pond_id || null,
+            ponds: selectedPondObj ? { name: selectedPondObj.name } : null,
+            feed_name,
+            bags: parseInt(bags),
+            kg_per_bag: parseFloat(kg_per_bag),
+            price_per_bag: parseFloat(price_per_bag),
+            total_weight: totalWeight,
+            total_price: totalPrice
+          };
+          setPurchases(prev => [newRec, ...prev]);
+        } else {
+          // 1. Save to feed_purchases
+          const { error: pError } = await supabase.from('feed_purchases').insert([{
+            user_id: user.id,
+            pond_id: pond_id || null,
+            feed_name,
+            bags: parseInt(bags),
+            kg_per_bag: parseFloat(kg_per_bag),
+            price_per_bag: parseFloat(price_per_bag),
+            total_weight: totalWeight,
+            total_price: totalPrice,
+            purchase_date: date
+          }]);
+
+          if (pError) throw pError;
+
+          // 2. Central Inventory Stock Update
+          const { data: existingStock } = await supabase.from('inventory')
+            .select('*')
+            .eq('name', feed_name)
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (existingStock) {
+            await supabase.from('inventory')
+              .update({ quantity: Number(existingStock.quantity) + totalWeight })
+              .eq('id', existingStock.id);
+          } else {
+            await supabase.from('inventory').insert([{
+              user_id: user.id,
+              name: feed_name,
+              quantity: totalWeight,
+              unit: 'কেজি',
+              type: 'খাবার',
+              low_stock_threshold: 50
+            }]);
+          }
+
+          // 3. Save Expense
+          await supabase.from('expenses').insert([{
+            user_id: user.id,
+            pond_id: pond_id || null,
+            category: 'খাবার',
+            item_name: `${feed_name} (${bags} বস্তা)`,
+            amount: totalPrice,
+            date: date
+          }]);
+        }
+
+        alert("✅ " + (pond_id ? "নির্দিষ্ট পুকুরের" : "কেন্দ্রীয় সাধারণ স্টকের") + " খাবার ক্রয় সফলভাবে সংরক্ষিত হয়েছে!");
       }
 
-      // ৩. খরচের হিসাবে যোগ
-      await supabase.from('expenses').insert([{
-        user_id: user.id,
-        pond_id: pond_id || null,
-        category: 'খাবার',
-        item_name: `${feed_name} (${bags} বস্তা)`,
-        amount: totalPrice,
-        date: date
-      }]);
-
       setIsModalOpen(false);
+      setEditingPurchaseId(null);
       setNewPurchase({ pond_id: '', feed_name: '', bags: '', kg_per_bag: '২৫', price_per_bag: '', date: new Date().toISOString().split('T')[0] });
       await fetchData();
-      alert("✅ স্টক ও খরচের হিসাব সফলভাবে আপডেট হয়েছে!");
     } catch (err: any) {
       alert("⚠️ সমস্যা: " + err.message);
     } finally {
@@ -113,50 +228,53 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleDelete = async (purchase: any) => {
-    if (confirm('এই রেকর্ডটি ডিলিট করলে স্টক স্বয়ংক্রিয়ভাবে কমবে না। আপনি কি নিশ্চিত?')) {
+    if (confirm('এই রেকর্ডটি ডিলিট করলে ক্রয় ইতিহাস মুছে যাবে। আপনি কি নিশ্চিত?')) {
+      if (user.id === 'guest-id') {
+        setPurchases(prev => prev.filter(p => p.id !== purchase.id));
+        return;
+      }
       const { error } = await supabase.from('feed_purchases').delete().eq('id', purchase.id);
       if (!error) fetchData();
     }
   };
 
   const filteredPurchases = filterPond 
-    ? purchases.filter(p => p.pond_id === filterPond)
+    ? (filterPond === 'central' ? purchases.filter(p => !p.pond_id) : purchases.filter(p => p.pond_id === filterPond))
     : purchases;
 
   const totalCost = filteredPurchases.reduce((a, b) => a + Number(b.total_price), 0);
   const totalWeightInStock = filteredPurchases.reduce((a, b) => a + Number(b.total_weight), 0);
 
   const handleExportFeedPurchasesPdf = () => {
-    const filtered = filterPond ? purchases.filter(p => p.pond_id === filterPond) : purchases;
-    if (filtered.length === 0) {
+    if (filteredPurchases.length === 0) {
       alert("কোনো খাবার ক্রয়ের তথ্য পাওয়া যায়নি!");
       return;
     }
 
-    const tableRows = filtered.map(p => [
+    const tableRows = filteredPurchases.map(p => [
       new Date(p.purchase_date).toLocaleDateString('bn-BD'),
-      p.ponds?.name || 'সাধারণ গুদাম',
+      p.ponds?.name ? p.ponds.name : 'কেন্দ্রীয় সাধারণ স্টক (সকল পুকুর)',
       p.feed_name,
       `${p.bags} বস্তা (${p.total_weight} কেজি)`,
       `৳ ${Number(p.price_per_bag).toLocaleString()}`,
       `৳ ${Number(p.total_price).toLocaleString()}`
     ]);
 
-    const totalSpent = filtered.reduce((acc, curr) => acc + Number(curr.total_price || 0), 0);
-    const totalBags = filtered.reduce((acc, curr) => acc + Number(curr.bags || 0), 0);
+    const totalSpent = filteredPurchases.reduce((acc, curr) => acc + Number(curr.total_price || 0), 0);
+    const totalBags = filteredPurchases.reduce((acc, curr) => acc + Number(curr.bags || 0), 0);
 
     exportReportToPdf({
       title: 'খাবার ক্রয় ও মজুদ স্টেটমেন্ট',
       farmName: user.farm_name || 'স্মার্ট মৎস্য খামার',
       userName: user.full_name || user.email,
       summaryCards: [
-        { label: 'মোট ক্রয় লেনদেন', value: `${filtered.length} টি` },
+        { label: 'মোট ক্রয় লেনদেন', value: `${filteredPurchases.length} টি` },
         { label: 'মোট আমদানিকৃত বস্তা', value: `${totalBags} বস্তা` },
         { label: 'মোট ব্যয়িত অর্থ', value: `৳ ${totalSpent.toLocaleString()}`, color: '#2563eb' }
       ],
-      tableHeaders: ['তারিখ', 'পুকুর', 'খাবারের নাম', 'পরিমাণ', 'বস্তাপ্রতি দাম', 'মোট দাম (৳)'],
+      tableHeaders: ['তারিখ', 'পুকুর / স্থান', 'খাবারের নাম', 'পরিমাণ', 'বস্তাপ্রতি দাম', 'মোট দাম (৳)'],
       tableRows: tableRows,
-      footerNotes: 'স্মার্ট চাষিয়া খাবার ফিডার ও গুদাম হিস্ট্রি থেকে প্রস্তুতকৃত।'
+      footerNotes: 'স্মার্ট চাসিয়া খাবার ফিডার ও গুদাম হিস্ট্রি থেকে প্রস্তুতকৃত।'
     });
   };
 
@@ -165,7 +283,7 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">খাবার ব্যবস্থাপনা</h1>
-          <p className="text-slate-500 font-bold">ক্রয় ইতিহাস, গুদাম স্টক ট্র্যাকিং ও পিডিএফ স্টেটমেন্ট</p>
+          <p className="text-slate-500 font-bold">সকল পুকুরের কেন্দ্রীয় খাবার স্টক ও ক্রয় ইতিহাস ট্র্যাকিং</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button 
@@ -175,10 +293,10 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
             📄 পিডিএফ ডাউনলোড
           </button>
           <button 
-            onClick={() => setIsModalOpen(true)} 
-            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm"
+            onClick={handleOpenAddModal} 
+            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
           >
-            ➕ স্টক যোগ করুন
+            ➕ খাবার ক্রয় যোগ করুন
           </button>
         </div>
       </div>
@@ -193,10 +311,15 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
            <h2 className="text-4xl font-black text-blue-600">{totalWeightInStock.toLocaleString()} <span className="text-sm">কেজি</span></h2>
         </div>
         <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">পুকুর ফিল্টার</p>
-           <select value={filterPond} onChange={e => setFilterPond(e.target.value)} className="w-full bg-slate-50 border-none rounded-xl font-bold py-2 px-4">
-              <option value="">সকল পুকুর</option>
-              {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">পুকুর / ফিল্টার</p>
+           <select 
+             value={filterPond} 
+             onChange={e => setFilterPond(e.target.value)} 
+             className="w-full bg-slate-50 border border-slate-200 rounded-2xl font-bold py-3 px-4 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+           >
+              <option value="">সকল খাবার (সকল পুকুর ও কেন্দ্রীয় গুদাম)</option>
+              <option value="central">🏬 কেন্দ্রীয় সাধারণ স্টক (নির্দিষ্ট পুকুর ছাড়া)</option>
+              {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name}</option>)}
            </select>
         </div>
       </div>
@@ -206,7 +329,7 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
           <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
             <tr>
               <th className="px-8 py-6">তারিখ</th>
-              <th className="px-8 py-6">পুকুর</th>
+              <th className="px-8 py-6">পুকুর / অবস্থান</th>
               <th className="px-8 py-6">খাবারের নাম</th>
               <th className="px-8 py-6">বস্তা (ওজন)</th>
               <th className="px-8 py-6 text-right">মোট দাম</th>
@@ -216,18 +339,43 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
           <tbody className="divide-y divide-slate-50 text-slate-700">
             {loading ? (
               <tr><td colSpan={6} className="text-center py-20 font-bold animate-pulse text-blue-600">লোড হচ্ছে...</td></tr>
+            ) : filteredPurchases.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-16 text-slate-400 italic">কোন খাবার ক্রয়ের রেকর্ড পাওয়া যায়নি</td></tr>
             ) : filteredPurchases.map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition group">
                 <td className="px-8 py-6 text-xs font-bold">{new Date(p.purchase_date).toLocaleDateString('bn-BD')}</td>
-                <td className="px-8 py-6 font-black">{p.ponds?.name || 'গুদাম'}</td>
+                <td className="px-8 py-6 font-black">
+                  {p.ponds?.name ? (
+                    <span className="text-slate-800">🐟 {p.ponds.name}</span>
+                  ) : (
+                    <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1">
+                      🏬 কেন্দ্রীয় সাধারণ স্টক
+                    </span>
+                  )}
+                </td>
                 <td className="px-8 py-6 font-bold">{p.feed_name}</td>
                 <td className="px-8 py-6">
                   <span className="font-black text-slate-800">{p.bags} বস্তা</span>
-                  <p className="text-[10px] text-slate-400 font-black">{p.kg_per_bag} কেজি/বস্তা</p>
+                  <p className="text-[10px] text-slate-400 font-black">{p.kg_per_bag} কেজি/বস্তা ({p.total_weight} কেজি)</p>
                 </td>
-                <td className="px-8 py-6 text-right font-black text-rose-600">৳ {p.total_price.toLocaleString()}</td>
+                <td className="px-8 py-6 text-right font-black text-rose-600">৳ {Number(p.total_price).toLocaleString()}</td>
                 <td className="px-8 py-6 text-center">
-                  <button onClick={() => handleDelete(p)} className="text-rose-300 hover:text-rose-600 transition">🗑️</button>
+                  <div className="flex items-center justify-center gap-2">
+                    <button 
+                      onClick={() => handleOpenEditModal(p)} 
+                      className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition"
+                      title="এডিট করুন"
+                    >
+                      ✏️ এডিট
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(p)} 
+                      className="p-1.5 bg-rose-50 text-rose-500 rounded-xl text-xs hover:bg-rose-100 transition"
+                      title="মুছুন"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -235,53 +383,114 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
         </table>
       </div>
 
+      {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50 overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 space-y-8 animate-in zoom-in-95 duration-300 shadow-2xl my-8">
-            <h3 className="text-2xl font-black text-slate-800 text-center tracking-tight">খাবার ক্রয় ও মজুদ তথ্য</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">পুকুর (ঐচ্ছিক)</label>
-                <select value={newPurchase.pond_id} onChange={e => setNewPurchase({...newPurchase, pond_id: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                  <option value="">গুদামে মজুদ</option>
-                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <div className="bg-white w-full max-w-2xl rounded-[3.5rem] p-8 md:p-10 space-y-6 animate-in zoom-in-95 duration-300 shadow-2xl my-8">
+            <h3 className="text-2xl font-black text-slate-800 text-center tracking-tight">
+              {editingPurchaseId ? '✏️ খাবার ক্রয়ের তথ্য এডিট' : '🏬 খাবার ক্রয় ও স্টক যোগ করুন'}
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 block">
+                  পুকুর নির্বাচন (ঐচ্ছিক - না দিলে সকল পুকুরের জন্য কেন্দ্রীয় স্টক হবে)
+                </label>
+                <select 
+                  value={newPurchase.pond_id} 
+                  onChange={e => setNewPurchase({...newPurchase, pond_id: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">🏬 সকল পুকুরের জন্য কেন্দ্রীয় গুদাম স্টক (পুকুর নির্দিষ্ট নয়)</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name} (নির্দিষ্ট পুকুর)</option>)}
                 </select>
+                <p className="text-[11px] text-blue-600 font-bold ml-4">
+                  💡 সব পুকুরের খাবার একসাথে কিনতে চাইলে পুকুর সিলেক্ট না করে খালি রাখুন।
+                </p>
               </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খাবারের নাম</label>
-                <input type="text" value={newPurchase.feed_name} onChange={e => setNewPurchase({...newPurchase, feed_name: e.target.value})} placeholder="উদা: নারিশ ফিড" className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                <input 
+                  type="text" 
+                  value={newPurchase.feed_name} 
+                  onChange={e => setNewPurchase({...newPurchase, feed_name: e.target.value})} 
+                  placeholder="উদা: নারিশ ফিড / মেগা ফিড" 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
+                />
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ক্রয়ের তারিখ</label>
+                <input 
+                  type="date" 
+                  value={newPurchase.date} 
+                  onChange={e => setNewPurchase({...newPurchase, date: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">বস্তা সংখ্যা</label>
-                <input type="number" value={newPurchase.bags} onChange={e => setNewPurchase({...newPurchase, bags: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                <input 
+                  type="number" 
+                  placeholder="উদা: ১০"
+                  value={newPurchase.bags} 
+                  onChange={e => setNewPurchase({...newPurchase, bags: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
+                />
               </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">কেজি/বস্তা</label>
-                <input type="number" value={newPurchase.kg_per_bag} onChange={e => setNewPurchase({...newPurchase, kg_per_bag: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                <input 
+                  type="number" 
+                  placeholder="উদা: ২৫"
+                  value={newPurchase.kg_per_bag} 
+                  onChange={e => setNewPurchase({...newPurchase, kg_per_bag: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
+                />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">বস্তার দাম (৳)</label>
-                <input type="number" value={newPurchase.price_per_bag} onChange={e => setNewPurchase({...newPurchase, price_per_bag: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none text-rose-600" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">তারিখ</label>
-                <input type="date" value={newPurchase.date} onChange={e => setNewPurchase({...newPurchase, date: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">প্রতি বস্তার ক্রয় মূল্য (৳)</label>
+                <input 
+                  type="number" 
+                  placeholder="উদা: ২২০০"
+                  value={newPurchase.price_per_bag} 
+                  onChange={e => setNewPurchase({...newPurchase, price_per_bag: e.target.value})} 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-rose-600 text-xl focus:ring-2 focus:ring-blue-500" 
+                />
               </div>
             </div>
-            <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white flex justify-around items-center text-center">
+
+            <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white flex justify-around items-center text-center">
                <div>
-                  <p className="text-[10px] opacity-50 font-black">মোট ওজন</p>
-                  <p className="text-3xl font-black">{(Number(newPurchase.bags) * Number(newPurchase.kg_per_bag) || 0)} কেজি</p>
+                  <p className="text-[10px] opacity-50 font-black uppercase tracking-widest">মোট আমদানিকৃত ওজন</p>
+                  <p className="text-3xl font-black text-blue-400">{(Number(newPurchase.bags) * Number(newPurchase.kg_per_bag) || 0)} কেজি</p>
                </div>
                <div>
-                  <p className="text-[10px] opacity-50 font-black">মোট দাম</p>
-                  <p className="text-3xl font-black">৳ {(Number(newPurchase.bags) * Number(newPurchase.price_per_bag) || 0).toLocaleString()}</p>
+                  <p className="text-[10px] opacity-50 font-black uppercase tracking-widest">মোট ক্রয় ব্যয়</p>
+                  <p className="text-3xl font-black text-emerald-400">৳ {(Number(newPurchase.bags) * Number(newPurchase.price_per_bag) || 0).toLocaleString()}</p>
                </div>
             </div>
-            <div className="flex gap-4 pt-4">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-slate-100 rounded-2xl font-black">বাতিল</button>
-              <button onClick={handleAddPurchase} disabled={saving} className="flex-[2] py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl disabled:opacity-50">
-                {saving ? 'সেভ হচ্ছে...' : 'মজুদ সেভ করুন'}
+
+            <div className="flex gap-4 pt-2">
+              <button 
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingPurchaseId(null);
+                }} 
+                className="flex-1 py-5 bg-slate-100 rounded-2xl font-black text-slate-600 hover:bg-slate-200 transition"
+              >
+                বাতিল
+              </button>
+              <button 
+                onClick={handleSavePurchase} 
+                disabled={saving} 
+                className="flex-[2] py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {saving ? 'সেভ হচ্ছে...' : (editingPurchaseId ? 'আপডেট সেভ করুন' : 'মজুদ সেভ করুন')}
               </button>
             </div>
           </div>

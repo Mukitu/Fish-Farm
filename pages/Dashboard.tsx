@@ -26,7 +26,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     { label: 'মাছ বিক্রি ও হিসাব', path: '/dashboard/sales', icon: '💰' },
     { label: 'খাবার প্রয়োগ', path: '/dashboard/feed-logs', icon: '🍽️' },
     { label: 'খাবার ব্যবস্থাপনা', path: '/dashboard/feeds', icon: '📦' },
-    { label: 'মাছের বৃদ্ধি', path: '/dashboard/growth', icon: '📈' },
     { label: 'গুদাম (Inventory)', path: '/dashboard/inventory', icon: '🏪' },
     { label: 'খরচের হিসাব', path: '/dashboard/expenses', icon: '📉' },
     { label: 'রিপোর্ট', path: '/dashboard/reports', icon: '📜' },

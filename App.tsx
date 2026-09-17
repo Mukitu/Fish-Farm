@@ -14,7 +14,6 @@ import ReportsPage from './pages/Reports';
 import FeedLogsPage from './pages/FeedLogs';
 import FeedManagement from './pages/FeedManagement';
 import InventoryPage from './pages/Inventory';
-import GrowthRecordsPage from './pages/GrowthRecords';
 import AdvisoryPage from './pages/Advisory';
 import AdminDashboard from './pages/AdminDashboard';
 import OwnerProfile from './pages/OwnerProfile';
@@ -302,7 +301,6 @@ const App: React.FC = () => {
             <Route path="feeds" element={<FeedManagement user={user!} />} />
             <Route path="feed-logs" element={<FeedLogsPage user={user!} />} />
             <Route path="inventory" element={<InventoryPage user={user!} />} />
-            <Route path="growth" element={<GrowthRecordsPage user={user!} />} />
             <Route path="reports" element={<ReportsPage user={user!} />} />
             <Route path="settings" element={<AccountSettings user={user!} onUpdateUser={fetchProfile} />} />
           </Route>
