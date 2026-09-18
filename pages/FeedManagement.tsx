@@ -165,7 +165,6 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
           };
           setPurchases(prev => [newRec, ...prev]);
         } else {
-          // 1. Save to feed_purchases
           const { error: pError } = await supabase.from('feed_purchases').insert([{
             user_id: user.id,
             pond_id: pond_id || null,
@@ -180,7 +179,6 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
 
           if (pError) throw pError;
 
-          // 2. Central Inventory Stock Update
           const { data: existingStock } = await supabase.from('inventory')
             .select('*')
             .eq('name', feed_name)
@@ -202,7 +200,6 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
             }]);
           }
 
-          // 3. Save Expense
           await supabase.from('expenses').insert([{
             user_id: user.id,
             pond_id: pond_id || null,
@@ -219,7 +216,7 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
       setIsModalOpen(false);
       setEditingPurchaseId(null);
       setNewPurchase({ pond_id: '', feed_name: '', bags: '', kg_per_bag: '২৫', price_per_bag: '', date: new Date().toISOString().split('T')[0] });
-      await fetchData();
+      if (user.id !== 'guest-id') await fetchData();
     } catch (err: any) {
       alert("⚠️ সমস্যা: " + err.message);
     } finally {
@@ -279,218 +276,256 @@ const FeedManagement: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div className="space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-black text-slate-800 tracking-tight">খাবার ব্যবস্থাপনা</h1>
-          <p className="text-slate-500 font-bold">সকল পুকুরের কেন্দ্রীয় খাবার স্টক ও ক্রয় ইতিহাস ট্র্যাকিং</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-800 tracking-tight">খাবার ব্যবস্থাপনা</h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-bold mt-1">কেন্দ্রীয় খাবার স্টক, ক্রয় ইতিহাস, এডিট ও ডিলিট</p>
         </div>
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex gap-2.5 w-full sm:w-auto">
           <button 
             onClick={handleExportFeedPurchasesPdf} 
-            className="flex-1 md:flex-initial px-6 py-4 bg-slate-900 text-white rounded-[2rem] font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-initial px-4 sm:px-5 py-3.5 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
           >
             📄 পিডিএফ ডাউনলোড
           </button>
           <button 
             onClick={handleOpenAddModal} 
-            className="flex-1 md:flex-initial px-8 py-4 bg-blue-600 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all text-xs md:text-sm flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-initial px-5 sm:px-6 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
           >
-            ➕ খাবার ক্রয় যোগ করুন
+            ➕ খাবার ক্রয় যোগ
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">মোট ক্রয় মূল্য</p>
-           <h2 className="text-4xl font-black text-rose-600">৳ {totalCost.toLocaleString()}</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">মোট ক্রয় মূল্য</p>
+           <h2 className="text-2xl sm:text-3xl font-black text-rose-600">৳ {totalCost.toLocaleString()}</h2>
         </div>
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">মোট আমদানিকৃত খাবার</p>
-           <h2 className="text-4xl font-black text-blue-600">{totalWeightInStock.toLocaleString()} <span className="text-sm">কেজি</span></h2>
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">মোট আমদানিকৃত খাবার</p>
+           <h2 className="text-2xl sm:text-3xl font-black text-blue-600">{totalWeightInStock.toLocaleString()} <span className="text-sm font-medium">কেজি</span></h2>
         </div>
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">পুকুর / ফিল্টার</p>
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm sm:col-span-2 md:col-span-1">
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">পুকুর / ফিল্টার</p>
            <select 
              value={filterPond} 
              onChange={e => setFilterPond(e.target.value)} 
-             className="w-full bg-slate-50 border border-slate-200 rounded-2xl font-bold py-3 px-4 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+             className="w-full bg-slate-50 border border-slate-200 rounded-2xl font-bold py-2.5 px-3 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
            >
               <option value="">সকল খাবার (সকল পুকুর ও কেন্দ্রীয় গুদাম)</option>
-              <option value="central">🏬 কেন্দ্রীয় সাধারণ স্টক (নির্দিষ্ট পুকুর ছাড়া)</option>
+              <option value="central">🏬 কেন্দ্রীয় সাধারণ স্টক</option>
               {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name}</option>)}
            </select>
         </div>
       </div>
 
-      <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
-            <tr>
-              <th className="px-8 py-6">তারিখ</th>
-              <th className="px-8 py-6">পুকুর / অবস্থান</th>
-              <th className="px-8 py-6">খাবারের নাম</th>
-              <th className="px-8 py-6">বস্তা (ওজন)</th>
-              <th className="px-8 py-6 text-right">মোট দাম</th>
-              <th className="px-8 py-6 text-center">অ্যাকশন</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50 text-slate-700">
-            {loading ? (
-              <tr><td colSpan={6} className="text-center py-20 font-bold animate-pulse text-blue-600">লোড হচ্ছে...</td></tr>
-            ) : filteredPurchases.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-16 text-slate-400 italic">কোন খাবার ক্রয়ের রেকর্ড পাওয়া যায়নি</td></tr>
-            ) : filteredPurchases.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50 transition group">
-                <td className="px-8 py-6 text-xs font-bold">{new Date(p.purchase_date).toLocaleDateString('bn-BD')}</td>
-                <td className="px-8 py-6 font-black">
-                  {p.ponds?.name ? (
-                    <span className="text-slate-800">🐟 {p.ponds.name}</span>
-                  ) : (
-                    <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1">
-                      🏬 কেন্দ্রীয় সাধারণ স্টক
-                    </span>
-                  )}
-                </td>
-                <td className="px-8 py-6 font-bold">{p.feed_name}</td>
-                <td className="px-8 py-6">
-                  <span className="font-black text-slate-800">{p.bags} বস্তা</span>
-                  <p className="text-[10px] text-slate-400 font-black">{p.kg_per_bag} কেজি/বস্তা ({p.total_weight} কেজি)</p>
-                </td>
-                <td className="px-8 py-6 text-right font-black text-rose-600">৳ {Number(p.total_price).toLocaleString()}</td>
-                <td className="px-8 py-6 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <button 
-                      onClick={() => handleOpenEditModal(p)} 
-                      className="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition"
-                      title="এডিট করুন"
-                    >
-                      ✏️ এডিট
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(p)} 
-                      className="p-1.5 bg-rose-50 text-rose-500 rounded-xl text-xs hover:bg-rose-100 transition"
-                      title="মুছুন"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </td>
+      <div className="bg-white rounded-3xl md:rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+        {/* Desktop View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
+              <tr>
+                <th className="px-8 py-6">তারিখ</th>
+                <th className="px-8 py-6">পুকুর / অবস্থান</th>
+                <th className="px-8 py-6">খাবারের নাম</th>
+                <th className="px-8 py-6">বস্তা (ওজন)</th>
+                <th className="px-8 py-6 text-right">মোট দাম</th>
+                <th className="px-8 py-6 text-center">অ্যাকশন</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-slate-700">
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-16 font-bold animate-pulse text-blue-600 text-sm">লোড হচ্ছে...</td></tr>
+              ) : filteredPurchases.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-16 text-slate-400 italic text-sm">কোন খাবার ক্রয়ের রেকর্ড পাওয়া যায়নি</td></tr>
+              ) : filteredPurchases.map(p => (
+                <tr key={p.id} className="hover:bg-slate-50 transition group">
+                  <td className="px-8 py-6 text-xs font-bold">{new Date(p.purchase_date).toLocaleDateString('bn-BD')}</td>
+                  <td className="px-8 py-6 font-black">
+                    {p.ponds?.name ? (
+                      <span className="text-slate-800">🐟 {p.ponds.name}</span>
+                    ) : (
+                      <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1">
+                        🏬 কেন্দ্রীয় সাধারণ স্টক
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-8 py-6 font-bold">{p.feed_name}</td>
+                  <td className="px-8 py-6">
+                    <span className="font-black text-slate-800">{p.bags} বস্তা</span>
+                    <p className="text-[10px] text-slate-400 font-black">{p.kg_per_bag} কেজি/বস্তা ({p.total_weight} কেজি)</p>
+                  </td>
+                  <td className="px-8 py-6 text-right font-black text-rose-600">৳ {Number(p.total_price).toLocaleString()}</td>
+                  <td className="px-8 py-6 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => handleOpenEditModal(p)} 
+                        className="p-2 text-slate-400 hover:text-blue-600 transition"
+                        title="এডিট করুন"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(p)} 
+                        className="p-2 text-slate-400 hover:text-rose-600 transition"
+                        title="মুছুন"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-12 text-center text-blue-600 font-bold animate-pulse text-sm">লোড হচ্ছে...</div>
+          ) : filteredPurchases.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 font-bold text-sm">কোনো ক্রয়ের রেকর্ড নেই</div>
+          ) : filteredPurchases.map(p => (
+            <div key={p.id} className="p-5 space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(p.purchase_date).toLocaleDateString('bn-BD')}</span>
+                    {p.ponds?.name ? (
+                      <span className="text-[9px] font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">🐟 {p.ponds.name}</span>
+                    ) : (
+                      <span className="text-[9px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">🏬 কেন্দ্রীয় স্টক</span>
+                    )}
+                  </div>
+                  <h4 className="font-black text-slate-800 text-base">{p.feed_name}</h4>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => handleOpenEditModal(p)} className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xs" title="এডিট">✏️</button>
+                  <button onClick={() => handleDelete(p)} className="w-8 h-8 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center text-xs" title="মুছুন">🗑️</button>
+                </div>
+              </div>
+              <div className="flex justify-between items-end border-t border-slate-50 pt-2">
+                <div>
+                  <p className="text-sm font-black text-slate-800">{p.bags} বস্তা <span className="text-xs font-normal text-slate-500">({p.total_weight} কেজি)</span></p>
+                  <p className="text-[10px] text-slate-400 font-bold">বস্তাপ্রতি: ৳ {p.price_per_bag}</p>
+                </div>
+                <p className="text-lg font-black text-rose-600 tracking-tight">৳ {Number(p.total_price).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-50 overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl rounded-[3.5rem] p-8 md:p-10 space-y-6 animate-in zoom-in-95 duration-300 shadow-2xl my-8">
-            <h3 className="text-2xl font-black text-slate-800 text-center tracking-tight">
-              {editingPurchaseId ? '✏️ খাবার ক্রয়ের তথ্য এডিট' : '🏬 খাবার ক্রয় ও স্টক যোগ করুন'}
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-50 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 shadow-2xl my-6">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-800 text-center tracking-tight">
+              {editingPurchaseId ? '✏️ খাবার ক্রয়ের তথ্য এডিট' : '🏬 খাবার ক্রয় ও স্টক যোগ'}
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 block">
-                  পুকুর নির্বাচন (ঐচ্ছিক - না দিলে সকল পুকুরের জন্য কেন্দ্রীয় স্টক হবে)
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 block">
+                  পুকুর নির্বাচন (ঐচ্ছিক - খালি রাখলে কেন্দ্রীয় স্টক)
                 </label>
                 <select 
                   value={newPurchase.pond_id} 
                   onChange={e => setNewPurchase({...newPurchase, pond_id: e.target.value})} 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                 >
-                  <option value="">🏬 সকল পুকুরের জন্য কেন্দ্রীয় গুদাম স্টক (পুকুর নির্দিষ্ট নয়)</option>
-                  {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name} (নির্দিষ্ট পুকুর)</option>)}
+                  <option value="">🏬 সকল পুকুরের জন্য কেন্দ্রীয় গুদাম স্টক</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name}</option>)}
                 </select>
-                <p className="text-[11px] text-blue-600 font-bold ml-4">
-                  💡 সব পুকুরের খাবার একসাথে কিনতে চাইলে পুকুর সিলেক্ট না করে খালি রাখুন।
-                </p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খাবারের নাম</label>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">খাবারের নাম</label>
                 <input 
                   type="text" 
                   value={newPurchase.feed_name} 
                   onChange={e => setNewPurchase({...newPurchase, feed_name: e.target.value})} 
                   placeholder="উদা: নারিশ ফিড / মেগা ফিড" 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500" 
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ক্রয়ের তারিখ</label>
-                <input 
-                  type="date" 
-                  value={newPurchase.date} 
-                  onChange={e => setNewPurchase({...newPurchase, date: e.target.value})} 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">ক্রয়ের তারিখ</label>
+                  <input 
+                    type="date" 
+                    value={newPurchase.date} 
+                    onChange={e => setNewPurchase({...newPurchase, date: e.target.value})} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">বস্তা সংখ্যা</label>
+                  <input 
+                    type="number" 
+                    placeholder="১০"
+                    value={newPurchase.bags} 
+                    onChange={e => setNewPurchase({...newPurchase, bags: e.target.value})} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">বস্তা সংখ্যা</label>
-                <input 
-                  type="number" 
-                  placeholder="উদা: ১০"
-                  value={newPurchase.bags} 
-                  onChange={e => setNewPurchase({...newPurchase, bags: e.target.value})} 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">কেজি/বস্তা</label>
-                <input 
-                  type="number" 
-                  placeholder="উদা: ২৫"
-                  value={newPurchase.kg_per_bag} 
-                  onChange={e => setNewPurchase({...newPurchase, kg_per_bag: e.target.value})} 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500" 
-                />
-              </div>
-
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">প্রতি বস্তার ক্রয় মূল্য (৳)</label>
-                <input 
-                  type="number" 
-                  placeholder="উদা: ২২০০"
-                  value={newPurchase.price_per_bag} 
-                  onChange={e => setNewPurchase({...newPurchase, price_per_bag: e.target.value})} 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-rose-600 text-xl focus:ring-2 focus:ring-blue-500" 
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">কেজি/বস্তা</label>
+                  <input 
+                    type="number" 
+                    placeholder="২৫"
+                    value={newPurchase.kg_per_bag} 
+                    onChange={e => setNewPurchase({...newPurchase, kg_per_bag: e.target.value})} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">দাম (বস্তাপ্রতি ৳)</label>
+                  <input 
+                    type="number" 
+                    placeholder="২২০০"
+                    value={newPurchase.price_per_bag} 
+                    onChange={e => setNewPurchase({...newPurchase, price_per_bag: e.target.value})} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-rose-600 font-black text-xs sm:text-sm focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white flex justify-around items-center text-center">
+            <div className="bg-slate-900 p-4 rounded-2xl text-white flex justify-around items-center text-center">
                <div>
-                  <p className="text-[10px] opacity-50 font-black uppercase tracking-widest">মোট আমদানিকৃত ওজন</p>
-                  <p className="text-3xl font-black text-blue-400">{(Number(newPurchase.bags) * Number(newPurchase.kg_per_bag) || 0)} কেজি</p>
+                  <p className="text-[9px] opacity-60 font-black uppercase tracking-widest">মোট আমদানিকৃত ওজন</p>
+                  <p className="text-xl font-black text-blue-400">{(Number(newPurchase.bags) * Number(newPurchase.kg_per_bag) || 0)} কেজি</p>
                </div>
                <div>
-                  <p className="text-[10px] opacity-50 font-black uppercase tracking-widest">মোট ক্রয় ব্যয়</p>
-                  <p className="text-3xl font-black text-emerald-400">৳ {(Number(newPurchase.bags) * Number(newPurchase.price_per_bag) || 0).toLocaleString()}</p>
+                  <p className="text-[9px] opacity-60 font-black uppercase tracking-widest">মোট ক্রয় ব্যয়</p>
+                  <p className="text-xl font-black text-emerald-400">৳ {(Number(newPurchase.bags) * Number(newPurchase.price_per_bag) || 0).toLocaleString()}</p>
                </div>
             </div>
 
-            <div className="flex gap-4 pt-2">
+            <div className="flex gap-3 pt-1">
               <button 
                 onClick={() => {
                   setIsModalOpen(false);
                   setEditingPurchaseId(null);
                 }} 
-                className="flex-1 py-5 bg-slate-100 rounded-2xl font-black text-slate-600 hover:bg-slate-200 transition"
+                className="flex-1 py-3.5 bg-slate-100 rounded-2xl font-black text-slate-600 text-xs sm:text-sm"
               >
                 বাতিল
               </button>
               <button 
                 onClick={handleSavePurchase} 
                 disabled={saving} 
-                className="flex-[2] py-5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition disabled:opacity-50"
+                className="flex-1 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200 disabled:opacity-50 text-xs sm:text-sm"
               >
-                {saving ? 'সেভ হচ্ছে...' : (editingPurchaseId ? 'আপডেট সেভ করুন' : 'মজুদ সেভ করুন')}
+                {saving ? 'সেভ হচ্ছে...' : (editingPurchaseId ? 'আপডেট সেভ' : 'মজুদ সেভ')}
               </button>
             </div>
           </div>

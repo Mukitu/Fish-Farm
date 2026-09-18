@@ -70,7 +70,7 @@ const AccountSettings: React.FC<{ user: UserProfile, onUpdateUser: any }> = ({ u
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">আপনার পূর্ণ নাম</label>
-              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" placeholder="উদা: মুুকিতুল ইসলাম নিশাত" />
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">খামারের নাম</label>

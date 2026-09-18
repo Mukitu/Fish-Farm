@@ -238,36 +238,67 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (localStorage.getItem('fish_farm_guest') === 'true') {
+      return {
+        id: 'guest-id',
+        email: 'guest@demo.com',
+        role: UserRole.FARMER,
+        subscription_status: SubscriptionStatus.ACTIVE,
+        expiry_date: new Date(Date.now() + 86400000 * 30).toISOString(),
+        max_ponds: 5,
+        farm_name: 'ডেমো মৎস্য খামার',
+        full_name: 'অতিথি ইউজার'
+      };
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
-  const [isGuest, setIsGuest] = useState(false);
 
   const fetchProfile = useCallback(async (id: string) => {
     if (!id) { 
-      if (!isGuest) {
+      if (localStorage.getItem('fish_farm_guest') !== 'true') {
         setUser(null); 
       }
       setLoading(false); 
       return; 
     }
     try {
+      localStorage.removeItem('fish_farm_guest');
       const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-      if (data) setUser(data as UserProfile);
+      if (data) {
+        setUser(data as UserProfile);
+      } else {
+        const { data: authData } = await supabase.auth.getSession();
+        if (authData?.session?.user) {
+          const fallbackUser: UserProfile = {
+            id: authData.session.user.id,
+            email: authData.session.user.email || 'user@farm.com',
+            role: UserRole.FARMER,
+            subscription_status: SubscriptionStatus.ACTIVE,
+            expiry_date: new Date(Date.now() + 365 * 86400000).toISOString(),
+            max_ponds: 10,
+            farm_name: 'আমার মৎস্য খামার',
+            full_name: authData.session.user.email ? authData.session.user.email.split('@')[0] : 'মৎস্য চাষী'
+          };
+          setUser(fallbackUser);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [isGuest]);
+  }, []);
 
   const enterGuestMode = () => {
-    setIsGuest(true);
+    localStorage.setItem('fish_farm_guest', 'true');
     setUser({
       id: 'guest-id',
       email: 'guest@demo.com',
       role: UserRole.FARMER,
       subscription_status: SubscriptionStatus.ACTIVE,
-      expiry_date: new Date(Date.now() + 86400000).toISOString(),
+      expiry_date: new Date(Date.now() + 86400000 * 30).toISOString(),
       max_ponds: 5,
       farm_name: 'ডেমো মৎস্য খামার',
       full_name: 'অতিথি ইউজার'
@@ -276,13 +307,31 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
+    // Safety timer so page never hangs on loading screen on slow mobile networks
+    const timer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 2500);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) fetchProfile(session.user.id);
-      else setLoading(false);
+      if (session?.user?.id) {
+        fetchProfile(session.user.id);
+      } else {
+        if (isMounted) setLoading(false);
+      }
+    }).catch(() => {
+      if (isMounted) setLoading(false);
     });
-  }, []);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [fetchProfile]);
 
   const handleLogout = async () => {
+    localStorage.removeItem('fish_farm_guest');
     await supabase.auth.signOut();
     setUser(null);
   };
@@ -299,13 +348,13 @@ const App: React.FC = () => {
       <Router>
         <AuthListener onProfileFetch={fetchProfile} />
         <Routes>
-          <Route path="/" element={<Landing enterGuestMode={enterGuestMode} />} />
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing enterGuestMode={enterGuestMode} />} />
           <Route path="/founder" element={<OwnerProfile />} />
-          <Route path="/login" element={<AuthPage type="login" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
-          <Route path="/register" element={<AuthPage type="register" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
+          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <AuthPage type="login" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
+          <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <AuthPage type="register" onLogin={(u) => setUser(u)} enterGuestMode={enterGuestMode} />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" />} />
-          <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
+          <Route path="/subscription" element={user ? <SubscriptionPage user={user} onUpdateUser={fetchProfile} /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard/*" element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />}>
             <Route index element={<DashboardSummary user={user!} />} />
             <Route path="ponds" element={<PondsPage user={user!} />} />
             <Route path="sales" element={<SalesPage user={user!} />} />
@@ -316,7 +365,7 @@ const App: React.FC = () => {
             <Route path="reports" element={<ReportsPage user={user!} />} />
             <Route path="settings" element={<AccountSettings user={user!} onUpdateUser={fetchProfile} />} />
           </Route>
-          <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/dashboard" />} />
+          <Route path="/admin" element={user?.role === UserRole.ADMIN ? <AdminDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
     </ErrorBoundary>
