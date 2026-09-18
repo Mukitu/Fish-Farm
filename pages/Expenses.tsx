@@ -26,10 +26,10 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       setExpenses([
         { id: 'e1', date: new Date().toISOString(), pond_id: '1', ponds: { name: 'পুকুর ১ (রুই)' }, category: 'খাবার', item_name: 'মাছের খাবার (নারিশ)', amount: 12000 },
         { id: 'e2', date: new Date().toISOString(), pond_id: '2', ponds: { name: 'পুকুর ২ (কাতলা)' }, category: 'প্রস্তুতি', item_name: 'চুন ও সার', amount: 3500 },
-        { id: 'e3', date: new Date().toISOString(), pond_id: '3', ponds: { name: 'পুকুর ৩ (পাঙ্গাস)' }, category: 'খাবার', item_name: 'খাবার (মেগা)', amount: 18000 },
+        { id: 'e3', date: new Date().toISOString(), pond_id: null, ponds: null, category: 'বিদ্যুৎ/জ্বালানি', item_name: 'কারেন্ট বিল ও জ্বালানি', amount: 4200 },
         { id: 'e4', date: new Date().toISOString(), pond_id: '4', ponds: { name: 'পুকুর ৪ (তেলাপিয়া)' }, category: 'পোনা', item_name: 'পোনা ক্রয়', amount: 5000 },
         { id: 'e5', date: new Date().toISOString(), pond_id: '5', ponds: { name: 'পুকুর ৫ (কার্প)' }, category: 'শ্রমিক', item_name: 'শ্রমিক মজুরি', amount: 4500 },
-        { id: 'e6', date: new Date().toISOString(), pond_id: '1', ponds: { name: 'পুকুর ১ (রুই)' }, category: 'মেডিসিন', item_name: 'ভিটামিন ও ঔষধ', amount: 2600 }
+        { id: 'e6', date: new Date().toISOString(), pond_id: null, ponds: null, category: 'অন্যান্য', item_name: 'অফিস ও খামার মেইনটেন্যান্স', amount: 2600 }
       ]);
       setLoading(false);
       return;
@@ -51,7 +51,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   const handleOpenAdd = () => {
     setEditingExpId(null);
-    setNewExp({ pond_id: ponds[0]?.id || '', category: 'খাবার', item_name: '', amount: '' });
+    setNewExp({ pond_id: '', category: 'খাবার', item_name: '', amount: '' });
     setIsModalOpen(true);
   };
 
@@ -67,24 +67,27 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const handleSave = async () => {
-    if (!newExp.pond_id || !newExp.amount) return alert("⚠️ পুকুর ও টাকার পরিমাণ সঠিকভাবে দিন!");
+    if (!newExp.amount || isNaN(parseFloat(newExp.amount)) || parseFloat(newExp.amount) <= 0) {
+      return alert("⚠️ সঠিক টাকার পরিমাণ প্রদান করুন!");
+    }
 
     const selectedPond = ponds.find(p => p.id === newExp.pond_id);
-    const pondName = selectedPond ? selectedPond.name : 'অজানা';
+    const pondName = selectedPond ? selectedPond.name : 'সকল পুকুর (সাধারণ খরচ)';
+    const pondIdToSave = newExp.pond_id ? newExp.pond_id : null;
 
     if (editingExpId) {
       if (user.id === 'guest-id') {
         setExpenses(prev => prev.map(exp => exp.id === editingExpId ? {
           ...exp,
-          pond_id: newExp.pond_id,
-          ponds: { name: pondName },
+          pond_id: pondIdToSave,
+          ponds: selectedPond ? { name: selectedPond.name } : null,
           category: newExp.category,
           item_name: newExp.item_name,
           amount: parseFloat(newExp.amount)
         } : exp));
       } else {
         const { error } = await supabase.from('expenses').update({
-          pond_id: newExp.pond_id,
+          pond_id: pondIdToSave,
           category: newExp.category,
           item_name: newExp.item_name,
           amount: parseFloat(newExp.amount)
@@ -97,8 +100,8 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         const newRec = {
           id: 'exp-' + Date.now(),
           date: new Date().toISOString(),
-          pond_id: newExp.pond_id,
-          ponds: { name: pondName },
+          pond_id: pondIdToSave,
+          ponds: selectedPond ? { name: selectedPond.name } : null,
           category: newExp.category,
           item_name: newExp.item_name,
           amount: parseFloat(newExp.amount)
@@ -107,7 +110,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       } else {
         const { error } = await supabase.from('expenses').insert([{
           user_id: user.id,
-          pond_id: newExp.pond_id,
+          pond_id: pondIdToSave,
           category: newExp.category,
           item_name: newExp.item_name,
           amount: parseFloat(newExp.amount),
@@ -143,7 +146,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
 
     const tableRows = expenses.map(exp => [
       new Date(exp.date).toLocaleDateString('bn-BD'),
-      exp.ponds?.name || 'অজানা',
+      exp.ponds?.name || 'সকল পুকুর (সাধারণ খরচ)',
       exp.category || 'সাধারণ খরচ',
       exp.item_name || '-',
       `৳ ${Number(exp.amount).toLocaleString()}`
@@ -170,7 +173,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">খরচের হিসাব</h1>
-          <p className="text-xs font-bold text-slate-400 mt-1">খামারের যাবতীয় খরচের বিবরণী, এডিট ও পিডিএফ সেভ</p>
+          <p className="text-xs font-bold text-slate-400 mt-1">খামারের যাবতীয় খরচের বিবরণী (পুকুর ভিত্তিক ও সাধারণ খরচ)</p>
         </div>
         <div className="flex gap-2.5 w-full sm:w-auto">
           <button 
@@ -195,7 +198,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest border-b">
               <tr>
                 <th className="px-8 py-6">তারিখ</th>
-                <th className="px-8 py-6">পুকুর</th>
+                <th className="px-8 py-6">পুকুর / খাত</th>
                 <th className="px-8 py-6">ক্যাটাগরি</th>
                 <th className="px-8 py-6">বিবরণ</th>
                 <th className="px-8 py-6 text-right">টাকা</th>
@@ -210,7 +213,13 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               ) : expenses.map(exp => (
                 <tr key={exp.id} className="hover:bg-slate-50 transition">
                   <td className="px-8 py-6 text-xs font-bold">{new Date(exp.date).toLocaleDateString('bn-BD')}</td>
-                  <td className="px-8 py-6 font-black text-slate-800">{exp.ponds?.name || 'অজানা'}</td>
+                  <td className="px-8 py-6 font-black text-slate-800">
+                    {exp.ponds?.name ? (
+                      <span>🐟 {exp.ponds.name}</span>
+                    ) : (
+                      <span className="text-slate-500 bg-slate-100 px-3 py-1 rounded-xl text-xs font-bold">🏢 সকল পুকুর (সাধারণ খরচ)</span>
+                    )}
+                  </td>
                   <td className="px-8 py-6 text-xs font-bold"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full">{exp.category || 'সাধারণ'}</span></td>
                   <td className="px-8 py-6 font-medium">{exp.item_name || '-'}</td>
                   <td className="px-8 py-6 text-right font-black text-rose-600">৳ {Number(exp.amount).toLocaleString()}</td>
@@ -240,7 +249,9 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(exp.date).toLocaleDateString('bn-BD')}</span>
                     <span className="text-[9px] font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded-md">{exp.category || 'সাধারণ'}</span>
                   </div>
-                  <h4 className="font-black text-slate-800 text-base">{exp.ponds?.name || 'অজানা'}</h4>
+                  <h4 className="font-black text-slate-800 text-base">
+                    {exp.ponds?.name ? `🐟 ${exp.ponds.name}` : '🏢 সকল পুকুর (সাধারণ খরচ)'}
+                  </h4>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => handleOpenEdit(exp)} className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xs" title="এডিট">✏️</button>
@@ -264,10 +275,10 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
             </h3>
             <div className="space-y-3.5">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">পুকুর</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">পুকুর নির্বাচন (ঐচ্ছিক)</label>
                 <select value={newExp.pond_id} onChange={e => setNewExp({...newExp, pond_id: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 rounded-2xl font-bold text-sm text-slate-800 border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500">
-                  <option value="">পুকুর বেছে নিন</option>
-                  {ponds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">🏢 সকল পুকুর (সাধারণ খরচ)</option>
+                  {ponds.map(p => <option key={p.id} value={p.id}>🐟 {p.name}</option>)}
                 </select>
               </div>
               <div>
@@ -284,7 +295,7 @@ const ExpensesPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               </div>
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">বিবরণ</label>
-                <input type="text" placeholder="উদা: ৫০ কেজি নারিশ ফিড ক্রয়" value={newExp.item_name} onChange={e => setNewExp({...newExp, item_name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 rounded-2xl font-bold text-sm text-slate-800 border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500" />
+                <input type="text" placeholder="উদা: কারেন্ট বিল / শ্রমিকের মজুরি" value={newExp.item_name} onChange={e => setNewExp({...newExp, item_name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 rounded-2xl font-bold text-sm text-slate-800 border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500" />
               </div>
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">টাকার পরিমাণ (৳)</label>
