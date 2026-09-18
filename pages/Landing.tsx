@@ -11,43 +11,53 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate('/dashboard');
-      }
-    });
-
-    // Fetch dynamic plans
-    const fetchPlans = async () => {
-      const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
-      if (data && data.value) {
-        setPlans(data.value);
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const isPast = window.scrollY > 20;
+          setScrolled(prev => (prev !== isPast ? isPast : prev));
+          ticking = false;
+        });
+        ticking = true;
       }
     };
-    fetchPlans();
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
-    // Visitor tracking
-    const trackVisit = async () => {
+    // Fetch dynamic plans non-blockingly
+    (async () => {
       try {
-        await supabase.from('site_analytics').insert([{ 
-          page_path: window.location.pathname,
-          visitor_id: localStorage.getItem('visitor_id') || (() => {
-            const id = Math.random().toString(36).substring(2);
-            localStorage.setItem('visitor_id', id);
-            return id;
-          })()
-        }]);
-      } catch (e) {
-        console.error('Tracking error:', e);
+        const { data } = await supabase.from('site_settings').select('*').eq('id', 'subscription_plans').single();
+        if (data && data.value) {
+          setPlans(data.value);
+        }
+      } catch {
+        // Fallback to default plans
       }
-    };
-    trackVisit();
+    })();
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    // Visitor tracking run asynchronously after render
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          const storedId = localStorage.getItem('visitor_id');
+          const visitor_id = storedId || Math.random().toString(36).substring(2);
+          if (!storedId) localStorage.setItem('visitor_id', visitor_id);
+
+          await supabase.from('site_analytics').insert([{ 
+            page_path: window.location.pathname,
+            visitor_id
+          }]);
+        } catch {
+          // Ignore tracking error
+        }
+      })();
+    }, 1200);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(timer);
+    };
   }, []);
 
   const scrollToSection = (id: string) => {
@@ -66,25 +76,30 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
       {/* Navigation */}
-      <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-5'}`}>
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">🐟</div>
-            <span className="text-xl md:text-2xl font-black text-slate-800 tracking-tight text-shadow-sm">মৎস্য খামার</span>
+      <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-200 ${scrolled ? 'bg-white/95 shadow-sm py-3 border-b border-slate-100' : 'bg-transparent py-4 md:py-5'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 touch-manipulation select-none">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md shadow-blue-200">🐟</div>
+            <span className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">মৎস্য খামার</span>
           </Link>
           
           <div className="hidden md:flex gap-8 text-slate-600 font-bold text-sm">
-            <button onClick={() => scrollToSection('features')} className="hover:text-blue-600 transition-colors">বৈশিষ্ট্যসমূহ</button>
-            <button onClick={() => scrollToSection('pricing')} className="hover:text-blue-600 transition-colors">মূল্যতালিকা</button>
-            <Link to="/founder" className="hover:text-blue-600 transition-colors">প্রতিষ্ঠাতা</Link>
+            <button onClick={() => scrollToSection('features')} className="hover:text-blue-600 transition-colors touch-manipulation">বৈশিষ্ট্যসমূহ</button>
+            <button onClick={() => scrollToSection('pricing')} className="hover:text-blue-600 transition-colors touch-manipulation">মূল্যতালিকা</button>
+            <Link to="/founder" className="hover:text-blue-600 transition-colors touch-manipulation">প্রতিষ্ঠাতা</Link>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={handleDemo} className="hidden sm:block px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-xs border border-emerald-100 hover:bg-emerald-100 transition-all">ডেমো</button>
-            <Link to="/login" className="hidden sm:block text-slate-600 font-bold text-sm px-4">লগইন</Link>
-            <Link to="/register" className="hidden sm:block px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">শুরু করুন</Link>
-            <Link to="/login" className="sm:hidden px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">লগইন করুন</Link>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-slate-800 bg-slate-100 rounded-lg transition-transform active:scale-90">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={handleDemo} className="hidden sm:block px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-xs border border-emerald-100 hover:bg-emerald-100 transition-all touch-manipulation active:scale-95">ডেমো</button>
+            <Link to="/login" className="hidden sm:block text-slate-600 font-bold text-sm px-4 touch-manipulation">লগইন</Link>
+            <Link to="/register" className="hidden sm:block px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-200 hover:bg-blue-700 transition-all touch-manipulation active:scale-95">শুরু করুন</Link>
+            <Link to="/login" className="sm:hidden px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-sm hover:bg-blue-700 transition-all touch-manipulation active:scale-95 select-none">লগইন করুন</Link>
+            <button 
+              type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)} 
+              aria-label="Toggle navigation menu"
+              className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-slate-800 bg-slate-100 rounded-lg touch-manipulation select-none active:scale-90"
+            >
               {isMenuOpen ? '✕' : '☰'}
             </button>
           </div>
@@ -92,42 +107,42 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden absolute top-full left-4 right-4 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 p-8 space-y-6 animate-in slide-in-from-top-4 duration-300 z-50">
-            <button onClick={handleDemo} className="block w-full text-left font-black text-emerald-600 text-lg">ডেমো দেখুন (Guest)</button>
-            <button onClick={() => scrollToSection('features')} className="block w-full text-left font-black text-slate-800 text-lg">বৈশিষ্ট্যসমূহ</button>
-            <button onClick={() => scrollToSection('pricing')} className="block w-full text-left font-black text-slate-800 text-lg">মূল্যতালিকা</button>
-            <Link to="/founder" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-lg">প্রতিষ্ঠাতা</Link>
-            <div className="h-px bg-slate-100"></div>
-            <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block font-black text-blue-600 text-center text-xl">লগইন করুন</Link>
+          <div className="md:hidden absolute top-full left-4 right-4 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 p-6 space-y-4 z-50">
+            <button onClick={handleDemo} className="block w-full text-left font-black text-emerald-600 text-base py-2 touch-manipulation active:opacity-70">ডেমো দেখুন (Guest)</button>
+            <button onClick={() => scrollToSection('features')} className="block w-full text-left font-black text-slate-800 text-base py-2 touch-manipulation active:opacity-70">বৈশিষ্ট্যসমূহ</button>
+            <button onClick={() => scrollToSection('pricing')} className="block w-full text-left font-black text-slate-800 text-base py-2 touch-manipulation active:opacity-70">মূল্যতালিকা</button>
+            <Link to="/founder" onClick={() => setIsMenuOpen(false)} className="block font-black text-slate-800 text-base py-2 touch-manipulation active:opacity-70">প্রতিষ্ঠাতা</Link>
+            <div className="h-px bg-slate-100 my-2"></div>
+            <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block font-black text-blue-600 text-center text-lg py-2 touch-manipulation active:opacity-70">লগইন করুন</Link>
           </div>
         )}
       </nav>
 
       {/* Hero Section */}
-      <header className="relative pt-32 pb-20 md:pt-52 md:pb-40 px-6 max-w-7xl mx-auto flex flex-col items-center text-center">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 overflow-hidden">
-          <div className="absolute top-20 left-1/4 w-72 h-72 bg-blue-400/10 blur-[100px] rounded-full"></div>
-          <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-cyan-400/10 blur-[120px] rounded-full"></div>
+      <header className="relative pt-28 pb-16 md:pt-48 md:pb-36 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col items-center text-center">
+        {/* Optimized Lightweight Background decoration */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none overflow-hidden">
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[320px] sm:w-[500px] md:w-[700px] h-[240px] md:h-[350px] bg-gradient-to-b from-blue-100/50 via-cyan-50/30 to-transparent rounded-full blur-3xl opacity-70"></div>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest mb-8 border border-blue-100 animate-bounce">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest mb-6 md:mb-8 border border-blue-100">
            <span className="flex h-2 w-2 rounded-full bg-blue-600"></span>
            স্মার্ট মাছ চাষের ডিজিটাল যুগ
         </div>
         
-        <h1 className="text-4xl md:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight mb-8">
+        <h1 className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-900 leading-[1.15] tracking-tight mb-6 md:mb-8">
           পুকুরের হিসাব রাখুন <br />
           <span className="text-blue-600">উন্নত প্রযুক্তিতে</span>
         </h1>
         
-        <p className="text-base md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed font-bold mb-12">
+        <p className="text-sm sm:text-base md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed font-bold mb-8 md:mb-12 px-2">
           খাবার প্রয়োগ থেকে শুরু করে পানির গুণমান পর্যবেক্ষণ—সবকিছুই এখন এক ক্লিকে। বাংলাদেশের খামারিদের জন্য বিশেষভাবে তৈরি স্মার্ট ম্যানেজমেন্ট সফটওয়্যার।
         </p>
         
-        <div className="flex flex-col sm:flex-row justify-center gap-5 w-full sm:w-auto">
-          <Link to="/register" className="px-12 py-5 bg-blue-600 text-white rounded-2xl text-xl font-black shadow-2xl shadow-blue-400/40 hover:bg-blue-700 transition-all hover:-translate-y-1 text-center">ফ্রি রেজিস্ট্রেশন</Link>
-          <button onClick={handleDemo} className="px-12 py-5 bg-emerald-600 text-white rounded-2xl text-xl font-black shadow-2xl shadow-emerald-400/40 hover:bg-emerald-700 transition-all hover:-translate-y-1 text-center">ডেমো দেখুন (Guest)</button>
-          <Link to="/founder" className="px-12 py-5 bg-white text-slate-800 border border-slate-200 rounded-2xl text-xl font-black hover:bg-slate-50 transition-all text-center">প্রতিষ্ঠাতার সাথে কথা বলুন</Link>
+        <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-5 w-full sm:w-auto max-w-md sm:max-w-none">
+          <Link to="/register" className="w-full sm:w-auto px-8 sm:px-12 py-4 sm:py-5 bg-blue-600 text-white rounded-2xl text-lg sm:text-xl font-black shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all text-center touch-manipulation select-none active:scale-95">ফ্রি রেজিস্ট্রেশন</Link>
+          <button onClick={handleDemo} className="w-full sm:w-auto px-8 sm:px-12 py-4 sm:py-5 bg-emerald-600 text-white rounded-2xl text-lg sm:text-xl font-black shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 transition-all text-center touch-manipulation select-none active:scale-95">ডেমো দেখুন (Guest)</button>
+          <Link to="/founder" className="w-full sm:w-auto px-8 sm:px-12 py-4 sm:py-5 bg-white text-slate-800 border border-slate-200 rounded-2xl text-lg sm:text-xl font-black hover:bg-slate-50 transition-all text-center touch-manipulation select-none active:scale-95">প্রতিষ্ঠাতার সাথে কথা বলুন</Link>
         </div>
       </header>
 
@@ -159,7 +174,7 @@ const Landing: React.FC<{ enterGuestMode: () => void }> = ({ enterGuestMode }) =
                   <li className="flex items-center gap-3">✅ <span className="text-slate-700">ইনভেন্টরি ম্যানেজমেন্ট</span></li>
                   <li className="flex items-center gap-3">✅ <span className="text-slate-700">অটোমেটেড রিপোর্ট</span></li>
                 </ul>
-                <Link to="/register" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black hover:bg-blue-600 transition-all shadow-xl active:scale-95">প্ল্যানটি কিনুন</Link>
+                <Link to="/register" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black hover:bg-blue-600 transition-all shadow-xl active:scale-95 text-center block touch-manipulation select-none">প্ল্যানটি কিনুন</Link>
               </div>
             ))}
           </div>

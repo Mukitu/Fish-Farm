@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import Landing from './pages/Landing';
@@ -23,14 +23,21 @@ import { UserProfile, SubscriptionStatus, UserRole, Pond } from './types';
 
 const AuthListener: React.FC<{ onProfileFetch: (id: string) => void }> = ({ onProfileFetch }) => {
   const navigate = useNavigate();
+  const onProfileFetchRef = React.useRef(onProfileFetch);
+  onProfileFetchRef.current = onProfileFetch;
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY') navigate('/reset-password');
-      else if (session) onProfileFetch(session.user.id);
-      else onProfileFetch("");
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      } else if (session?.user?.id) {
+        onProfileFetchRef.current(session.user.id);
+      } else {
+        onProfileFetchRef.current("");
+      }
     });
     return () => subscription.unsubscribe();
-  }, [navigate, onProfileFetch]);
+  }, [navigate]);
   return null;
 };
 
@@ -235,7 +242,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  const fetchProfile = async (id: string) => {
+  const fetchProfile = useCallback(async (id: string) => {
     if (!id) { 
       if (!isGuest) {
         setUser(null); 
@@ -243,10 +250,15 @@ const App: React.FC = () => {
       setLoading(false); 
       return; 
     }
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-    if (data) setUser(data as UserProfile);
-    setLoading(false);
-  };
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+      if (data) setUser(data as UserProfile);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [isGuest]);
 
   const enterGuestMode = () => {
     setIsGuest(true);
