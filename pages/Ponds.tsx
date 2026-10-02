@@ -21,6 +21,20 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [stocking, setStocking] = useState({ species: '', count: '', total_weight: '', avg_size_inch: '' });
   const [availableGuides, setAvailableGuides] = useState<any[]>([]);
 
+  // Stock Adjustment & Direct Edit State
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [selectedStockPond, setSelectedStockPond] = useState<any>(null);
+  const [selectedStockRecord, setSelectedStockRecord] = useState<any>(null);
+  const [adjustTab, setAdjustTab] = useState<'plus' | 'minus' | 'direct'>('plus');
+  const [adjustCount, setAdjustCount] = useState<string>('');
+  const [adjustWeight, setAdjustWeight] = useState<string>('');
+  const [editStockData, setEditStockData] = useState({
+    species: '',
+    count: '',
+    total_weight_kg: '',
+    avg_size_inch: ''
+  });
+
   useEffect(() => { 
     fetchPonds(); 
     fetchGuides();
@@ -135,15 +149,198 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
     } catch (err: any) { alert(err.message); } finally { setSaving(false); }
   };
 
-  const handleDeleteStock = async (stockId: string) => {
-    if (user.id === 'guest-id') return alert('ডেমো মোডে ডাটা সেভ করা যাবে না।');
-    if (confirm('আপনি কি এই মাছের ক্যাটাগরি রেকর্ডটি মুছে ফেলতে চান?')) {
-      const { error } = await supabase.from('stocking_records').delete().eq('id', stockId);
-      if (!error) {
-        fetchPonds();
-      } else {
-        alert(error.message);
+  const openAdjustModal = (pond: any, stock: any, mode: 'plus' | 'minus' | 'direct' = 'plus') => {
+    setSelectedStockPond(pond);
+    setSelectedStockRecord(stock);
+    setAdjustTab(mode);
+    setAdjustCount('');
+    setAdjustWeight('');
+    setEditStockData({
+      species: stock.species || '',
+      count: String(stock.count || 0),
+      total_weight_kg: stock.total_weight_kg !== undefined && stock.total_weight_kg !== null ? String(stock.total_weight_kg) : '',
+      avg_size_inch: stock.avg_size_inch !== undefined && stock.avg_size_inch !== null ? String(stock.avg_size_inch) : ''
+    });
+    setIsAdjustModalOpen(true);
+  };
+
+  const handleDeleteStock = async (stockId: string, pondId?: string) => {
+    if (confirm('আপনি কি এই মাছের রেকর্ডটি মুছে ফেলতে চান?')) {
+      if (user.id === 'guest-id') {
+        setPonds(prevPonds => prevPonds.map(p => {
+          if (pondId && p.id !== pondId) return p;
+          const updated = (p.stocking_records || []).filter((s: any) => s.id !== stockId);
+          const totalW = updated.reduce((a: any, b: any) => a + Number(b.total_weight_kg || 0), 0);
+          const totalC = updated.reduce((a: any, b: any) => a + Number(b.count || 0), 0);
+          return {
+            ...p,
+            stocking_records: updated,
+            total_weight: totalW,
+            total_count: totalC,
+            avg_weight: totalC > 0 ? (totalW * 1000) / totalC : 0
+          };
+        }));
+        return;
       }
+      setSaving(true);
+      try {
+        const { error } = await supabase.from('stocking_records').delete().eq('id', stockId);
+        if (error) throw error;
+        await fetchPonds();
+      } catch (err: any) {
+        alert(err.message || 'রেকর্ড মুছতে সমস্যা হয়েছে');
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const handleSaveAdjustment = async () => {
+    if (!selectedStockRecord || !selectedStockPond) return;
+    const countDelta = parseInt(adjustCount) || 0;
+    if (countDelta <= 0) {
+      alert("অনুগ্রহ করে সঠিক পিস সংখ্যা দিন!");
+      return;
+    }
+
+    const weightDelta = parseFloat(adjustWeight) || 0;
+    const currentCount = Number(selectedStockRecord.count || 0);
+    const currentWeight = Number(selectedStockRecord.total_weight_kg || 0);
+
+    let finalCount = currentCount;
+    let finalWeight = currentWeight;
+
+    if (adjustTab === 'plus') {
+      finalCount = currentCount + countDelta;
+      finalWeight = currentWeight + weightDelta;
+    } else if (adjustTab === 'minus') {
+      if (countDelta > currentCount) {
+        alert(`বর্তমান মজুদের চেয়ে বেশি সংখ্যা (${countDelta} > ${currentCount}) বিয়োগ করা যাবে না!`);
+        return;
+      }
+      finalCount = Math.max(0, currentCount - countDelta);
+      finalWeight = Math.max(0, currentWeight - weightDelta);
+    }
+
+    setSaving(true);
+    try {
+      if (user.id === 'guest-id') {
+        setPonds(prevPonds => prevPonds.map(p => {
+          if (p.id === selectedStockPond.id) {
+            const updatedRecords = (p.stocking_records || []).map((r: any) => {
+              if (r.id === selectedStockRecord.id || (r.species && r.species === selectedStockRecord.species)) {
+                return {
+                  ...r,
+                  count: finalCount,
+                  total_weight_kg: finalWeight,
+                  avg_weight_gm: finalCount > 0 ? (finalWeight * 1000) / finalCount : 0
+                };
+              }
+              return r;
+            });
+            const totalW = updatedRecords.reduce((a: any, b: any) => a + Number(b.total_weight_kg || 0), 0);
+            const totalC = updatedRecords.reduce((a: any, b: any) => a + Number(b.count || 0), 0);
+            return {
+              ...p,
+              stocking_records: updatedRecords,
+              total_weight: totalW,
+              total_count: totalC,
+              avg_weight: totalC > 0 ? (totalW * 1000) / totalC : 0
+            };
+          }
+          return p;
+        }));
+        setIsAdjustModalOpen(false);
+        alert(`✅ ${selectedStockRecord.species}-এর মজুদ আপডেট হয়েছে! বর্তমান মজুদ: ${finalCount} পিস`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('stocking_records')
+        .update({
+          count: finalCount,
+          total_weight_kg: finalWeight,
+          avg_weight_gm: finalCount > 0 ? (finalWeight * 1000) / finalCount : 0
+        })
+        .eq('id', selectedStockRecord.id);
+
+      if (error) throw error;
+
+      setIsAdjustModalOpen(false);
+      await fetchPonds();
+      alert(`✅ ${selectedStockRecord.species}-এর মজুদ সফলভাবে আপডেট হয়েছে! নতুন মজুদ: ${finalCount} পিস`);
+    } catch (err: any) {
+      alert(err.message || 'মজুদ আপডেট করতে সমস্যা হয়েছে');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDirectEdit = async () => {
+    if (!selectedStockRecord || !selectedStockPond) return;
+    if (!editStockData.species.trim()) {
+      alert("মাছের নাম অবশ্যই দিতে হবে!");
+      return;
+    }
+    const finalCount = parseInt(editStockData.count) || 0;
+    const finalWeight = parseFloat(editStockData.total_weight_kg) || 0;
+    const finalSize = parseFloat(editStockData.avg_size_inch) || 0;
+
+    setSaving(true);
+    try {
+      if (user.id === 'guest-id') {
+        setPonds(prevPonds => prevPonds.map(p => {
+          if (p.id === selectedStockPond.id) {
+            const updatedRecords = (p.stocking_records || []).map((r: any) => {
+              if (r.id === selectedStockRecord.id || (r.species && r.species === selectedStockRecord.species)) {
+                return {
+                  ...r,
+                  species: editStockData.species.trim(),
+                  count: finalCount,
+                  total_weight_kg: finalWeight,
+                  avg_size_inch: finalSize,
+                  avg_weight_gm: finalCount > 0 ? (finalWeight * 1000) / finalCount : 0
+                };
+              }
+              return r;
+            });
+            const totalW = updatedRecords.reduce((a: any, b: any) => a + Number(b.total_weight_kg || 0), 0);
+            const totalC = updatedRecords.reduce((a: any, b: any) => a + Number(b.count || 0), 0);
+            return {
+              ...p,
+              stocking_records: updatedRecords,
+              total_weight: totalW,
+              total_count: totalC,
+              avg_weight: totalC > 0 ? (totalW * 1000) / totalC : 0
+            };
+          }
+          return p;
+        }));
+        setIsAdjustModalOpen(false);
+        alert(`✅ ${editStockData.species} তথ্য সফলভাবে সেভ হয়েছে!`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('stocking_records')
+        .update({
+          species: editStockData.species.trim(),
+          count: finalCount,
+          total_weight_kg: finalWeight,
+          avg_size_inch: finalSize,
+          avg_weight_gm: finalCount > 0 ? (finalWeight * 1000) / finalCount : 0
+        })
+        .eq('id', selectedStockRecord.id);
+
+      if (error) throw error;
+
+      setIsAdjustModalOpen(false);
+      await fetchPonds();
+      alert(`✅ ${editStockData.species} তথ্য সফলভাবে সেভ হয়েছে!`);
+    } catch (err: any) {
+      alert(err.message || 'তথ্য আপডেট করতে সমস্যা হয়েছে');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -177,7 +374,8 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
               updatedRecords[existingIndex] = {
                 ...updatedRecords[existingIndex],
                 count: Number(updatedRecords[existingIndex].count || 0) + count,
-                total_weight_kg: Number(updatedRecords[existingIndex].total_weight_kg || 0) + weight
+                total_weight_kg: Number(updatedRecords[existingIndex].total_weight_kg || 0) + weight,
+                avg_size_inch: avgSize > 0 ? avgSize : updatedRecords[existingIndex].avg_size_inch
               };
             } else {
               updatedRecords = [...existingRecords, newRecord];
@@ -198,6 +396,34 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
         setIsStockModalOpen(false);
         setStocking({ species: '', count: '', total_weight: '', avg_size_inch: '' });
         alert(`✅ ${stocking.species} (${count} পিস) পুকুরে যোগ করা হয়েছে!`);
+        return;
+      }
+
+      // Check if species already exists in this pond in database
+      const existingRecord = selectedPond.stocking_records?.find(
+        (r: any) => r.species?.trim().toLowerCase() === stocking.species.trim().toLowerCase()
+      );
+
+      if (existingRecord) {
+        const newCount = Number(existingRecord.count || 0) + count;
+        const newWeight = Number(existingRecord.total_weight_kg || 0) + weight;
+        const newSize = avgSize > 0 ? avgSize : (existingRecord.avg_size_inch || 0);
+
+        const { error } = await supabase
+          .from('stocking_records')
+          .update({
+            count: newCount,
+            total_weight_kg: newWeight,
+            avg_weight_gm: newCount > 0 ? (newWeight * 1000) / newCount : 0,
+            avg_size_inch: newSize
+          })
+          .eq('id', existingRecord.id);
+
+        if (error) throw error;
+        setIsStockModalOpen(false);
+        setStocking({ species: '', count: '', total_weight: '', avg_size_inch: '' });
+        await fetchPonds();
+        alert(`✅ বিদ্যমান '${existingRecord.species}'-এর মজুদে ${count} পিস যোগ করা হয়েছে! বর্তমান মোট মজুদ: ${newCount} পিস`);
         return;
       }
 
@@ -341,42 +567,77 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 </div>
 
                 {/* Species Breakdown */}
-                <div className="bg-slate-50 p-4 rounded-2xl space-y-2 mb-6">
+                <div className="bg-slate-50 p-4 rounded-3xl space-y-2 mb-6 border border-slate-100">
                   <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2 flex justify-between items-center">
                     <span>মাছের জাত ও মজুদ</span>
-                    <span className="text-blue-600 font-bold">{pond.stocking_records?.length || 0} টি জাত</span>
+                    <span className="text-blue-600 font-bold bg-blue-50 px-2.5 py-0.5 rounded-full text-[10px]">{pond.stocking_records?.length || 0} টি জাত</span>
                   </div>
 
                   {pond.stocking_records && pond.stocking_records.length > 0 ? (
-                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                       {pond.stocking_records.map((stock: any) => (
-                        <div key={stock.id || stock.species} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-xs font-bold">
-                          <div>
-                            <span className="text-slate-800 font-black block">🐟 {stock.species}</span>
-                            {stock.avg_size_inch > 0 && (
-                              <span className="text-[10px] text-slate-400">সাইজ: {stock.avg_size_inch} ইঞ্চি</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <span className="text-blue-600 font-black block">{stock.count || 0} পিস</span>
-                              <span className="text-slate-400 text-[10px]">({stock.total_weight_kg || 0} কেজি)</span>
+                        <div key={stock.id || stock.species} className="bg-white p-3 rounded-2xl border border-slate-100 hover:border-blue-200 transition-all shadow-xs">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <span className="text-slate-800 font-black text-sm block">🐟 {stock.species}</span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold mt-0.5">
+                                {stock.avg_size_inch > 0 && <span>সাইজ: {stock.avg_size_inch}"</span>}
+                                {stock.total_weight_kg > 0 && <span>ওজন: {stock.total_weight_kg} কেজি</span>}
+                              </div>
                             </div>
-                            {user.id !== 'guest-id' && (
+                            <div className="text-right">
+                              <span className="text-blue-600 font-black text-sm block">{Number(stock.count || 0).toLocaleString()} পিস</span>
+                              {stock.count > 0 && stock.total_weight_kg > 0 && (
+                                <span className="text-slate-400 text-[10px] font-semibold">
+                                  গড়: {Math.round((stock.total_weight_kg * 1000) / stock.count)} গ্রাম
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Adjust and Edit Action Bar */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-1">
+                            <div className="flex items-center gap-1.5">
                               <button 
-                                onClick={() => handleDeleteStock(stock.id)} 
-                                className="text-slate-300 hover:text-rose-500 ml-1 text-xs" 
+                                onClick={() => openAdjustModal(pond, stock, 'plus')} 
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black flex items-center gap-1 transition-all active:scale-95"
+                                title="পুকুরে আরও মাছ/পোনা যোগ করুন (+)"
+                              >
+                                <span>➕</span>
+                                <span>যোগ</span>
+                              </button>
+                              <button 
+                                onClick={() => openAdjustModal(pond, stock, 'minus')} 
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-black flex items-center gap-1 transition-all active:scale-95"
+                                title="মাছ বিক্রি বা কমতি বিয়োগ করুন (-)"
+                              >
+                                <span>➖</span>
+                                <span>বিয়োগ</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => openAdjustModal(pond, stock, 'direct')} 
+                                className="p-1.5 bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl text-xs font-bold transition-all active:scale-95"
+                                title="নাম ও মোট সংখ্যা সরাসরি এডিট করুন"
+                              >
+                                ✏️
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteStock(stock.id, pond.id)} 
+                                className="p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl text-xs font-bold transition-all active:scale-95" 
                                 title="এই মাছের রেকর্ড মুছুন"
                               >
-                                ✕
+                                🗑️
                               </button>
-                            )}
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400 italic py-2 text-center">এখনো কোনো মাছের জাত যোগ করা হয়নি</p>
+                    <p className="text-xs text-slate-400 italic py-3 text-center">এখনো কোনো মাছের জাত যোগ করা হয়নি</p>
                   )}
                 </div>
               </div>
@@ -466,6 +727,22 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                   onChange={e => setStocking({...stocking, species: e.target.value})} 
                   className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" 
                 />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {['রুই', 'কাতলা', 'মৃগেল', 'পাঙ্গাস', 'তেলাপিয়া', 'শিং', 'মাগুর', 'পাবদা', 'কৈ', 'কার্প'].map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setStocking({ ...stocking, species: s })}
+                      className={`px-2.5 py-1 text-xs rounded-xl font-bold transition-all ${
+                        stocking.species === s
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <div>
@@ -508,6 +785,320 @@ const PondsPage: React.FC<{ user: UserProfile }> = ({ user }) => {
                 {saving ? 'সেভ হচ্ছে...' : 'মজুদ সম্পন্ন'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Adjustment & Edit Modal (+ / - / Direct Edit) */}
+      {isAdjustModalOpen && selectedStockRecord && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-50 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] md:rounded-[3rem] p-6 sm:p-8 space-y-5 animate-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto shadow-2xl">
+            <div className="text-center space-y-1">
+              <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-black">
+                <span>🌊 {selectedStockPond?.name}</span>
+              </div>
+              <h3 className="text-2xl font-black text-slate-800">
+                🐟 {selectedStockRecord?.species}
+              </h3>
+              <p className="text-xs font-bold text-slate-400">মাছের মজুদ সমন্বয়, যোগ-বিয়োগ ও পরিবর্তন</p>
+            </div>
+
+            {/* Current Status Overview */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase block">বর্তমান মজুদ</span>
+                <span className="text-blue-600 font-black text-base">{Number(selectedStockRecord.count || 0).toLocaleString()} পিস</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase block">মোট ওজন</span>
+                <span className="text-slate-800 font-black text-base">{Number(selectedStockRecord.total_weight_kg || 0).toLocaleString()} কেজি</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-black text-slate-400 uppercase block">গড় সাইজ</span>
+                <span className="text-slate-800 font-black text-base">{selectedStockRecord.avg_size_inch ? `${selectedStockRecord.avg_size_inch}"` : '-'}</span>
+              </div>
+            </div>
+
+            {/* Adjustment Mode Tabs */}
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
+              <button
+                type="button"
+                onClick={() => setAdjustTab('plus')}
+                className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                  adjustTab === 'plus' 
+                    ? 'bg-emerald-600 text-white shadow-md' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>➕</span>
+                <span>প্লাস (যোগ)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjustTab('minus')}
+                className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                  adjustTab === 'minus' 
+                    ? 'bg-amber-600 text-white shadow-md' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>➖</span>
+                <span>মাইনাস (বিয়োগ)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjustTab('direct')}
+                className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                  adjustTab === 'direct' 
+                    ? 'bg-blue-600 text-white shadow-md' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>✏️</span>
+                <span>সরাসরি এডিট</span>
+              </button>
+            </div>
+
+            {/* TAB 1: PLUS (ADD FISH) */}
+            {adjustTab === 'plus' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl text-xs text-emerald-800 font-bold">
+                  💡 নতুন কেনা বা পুকুরে পোনা ছাড়লে সংখ্যা দিন। এটি বর্তমান মজুদের সাথে যোগ হবে।
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    যোগ করার সংখ্যা (পিস) *
+                  </label>
+                  <input 
+                    type="number"
+                    min="1"
+                    placeholder="উদা: ৫০০" 
+                    value={adjustCount}
+                    onChange={e => setAdjustCount(e.target.value)}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-black text-lg text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    অতিরিক্ত ওজন কেজি (ঐচ্ছিক)
+                  </label>
+                  <input 
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="উদা: ২৫" 
+                    value={adjustWeight}
+                    onChange={e => setAdjustWeight(e.target.value)}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Calculation Preview */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-1.5 text-xs font-bold">
+                  <div className="flex justify-between text-slate-500">
+                    <span>পূর্বের মজুদ:</span>
+                    <span>{Number(selectedStockRecord.count || 0).toLocaleString()} পিস ({Number(selectedStockRecord.total_weight_kg || 0)} কেজি)</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600">
+                    <span>নতুন যোগ হচ্ছে:</span>
+                    <span>+{Number(adjustCount) || 0} পিস (+{Number(adjustWeight) || 0} কেজি)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-800 font-black text-sm pt-2 border-t border-slate-200">
+                    <span>আপডেটের পর মোট মজুদ:</span>
+                    <span className="text-emerald-700">
+                      {(Number(selectedStockRecord.count || 0) + (Number(adjustCount) || 0)).toLocaleString()} পিস
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAdjustModalOpen(false)} 
+                    className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black text-sm transition-all"
+                  >
+                    বাতিল
+                  </button>
+                  <button 
+                    type="button"
+                    disabled={saving || !adjustCount || Number(adjustCount) <= 0}
+                    onClick={handleSaveAdjustment}
+                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-200 transition-all"
+                  >
+                    {saving ? 'আপডেট হচ্ছে...' : '➕ যোগ করে সেভ করুন'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: MINUS (SUBTRACT/SELL FISH) */}
+            {adjustTab === 'minus' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-2xl text-xs text-amber-800 font-bold">
+                  💡 মাছ বিক্রি, স্থানান্তর বা পুকুর থেকে তুললে সংখ্যা দিন। এটি বর্তমান মজুদ থেকে বিয়োগ হবে।
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    কমানো বা বিক্রির সংখ্যা (পিস) *
+                  </label>
+                  <input 
+                    type="number"
+                    min="1"
+                    max={Number(selectedStockRecord.count || 0)}
+                    placeholder="উদা: ২০০" 
+                    value={adjustCount}
+                    onChange={e => setAdjustCount(e.target.value)}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-black text-lg text-amber-600 outline-none focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                  {Number(adjustCount) > Number(selectedStockRecord.count || 0) && (
+                    <p className="text-xs text-rose-500 font-bold mt-1.5 ml-3">
+                      ⚠️ বর্তমান মজুদের চেয়ে বেশি সংখ্যা ({adjustCount} &gt; {selectedStockRecord.count}) বিয়োগ করা যাবে না!
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    কমে যাওয়া মোট ওজন কেজি (ঐচ্ছিক)
+                  </label>
+                  <input 
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="উদা: ৪০" 
+                    value={adjustWeight}
+                    onChange={e => setAdjustWeight(e.target.value)}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Calculation Preview */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-1.5 text-xs font-bold">
+                  <div className="flex justify-between text-slate-500">
+                    <span>পূর্বের মজুদ:</span>
+                    <span>{Number(selectedStockRecord.count || 0).toLocaleString()} পিস ({Number(selectedStockRecord.total_weight_kg || 0)} কেজি)</span>
+                  </div>
+                  <div className="flex justify-between text-amber-600">
+                    <span>বাদ যাচ্ছে:</span>
+                    <span>-{Number(adjustCount) || 0} পিস (-{Number(adjustWeight) || 0} কেজি)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-800 font-black text-sm pt-2 border-t border-slate-200">
+                    <span>আপডেটের পর অবশিষ্ট থাকবে:</span>
+                    <span className="text-amber-700">
+                      {Math.max(0, Number(selectedStockRecord.count || 0) - (Number(adjustCount) || 0)).toLocaleString()} পিস
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAdjustModalOpen(false)} 
+                    className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black text-sm transition-all"
+                  >
+                    বাতিল
+                  </button>
+                  <button 
+                    type="button"
+                    disabled={saving || !adjustCount || Number(adjustCount) <= 0 || Number(adjustCount) > Number(selectedStockRecord.count || 0)}
+                    onClick={handleSaveAdjustment}
+                    className="flex-1 py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm shadow-lg shadow-amber-200 transition-all"
+                  >
+                    {saving ? 'আপডেট হচ্ছে...' : '➖ বিয়োগ করে সেভ করুন'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: DIRECT EDIT (MODIFY NAME, TOTAL COUNT, WEIGHT) */}
+            {adjustTab === 'direct' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl text-xs text-blue-800 font-bold">
+                  💡 মাছের নাম সংশোধন করতে বা বর্তমান সঠিক মোট সংখ্যা ও ওজন সরাসরি লিখে সেভ করুন।
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    মাছের নাম / জাত *
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="উদা: রুই" 
+                    value={editStockData.species}
+                    onChange={e => setEditStockData({...editStockData, species: e.target.value})}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                    মোট সংখ্যা (পিস) *
+                  </label>
+                  <input 
+                    type="number"
+                    min="0"
+                    placeholder="উদা: ১২০০" 
+                    value={editStockData.count}
+                    onChange={e => setEditStockData({...editStockData, count: e.target.value})}
+                    className="w-full px-6 py-3.5 bg-slate-50 border-none rounded-2xl font-black text-lg text-blue-600 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                      মোট ওজন (কেজি)
+                    </label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="উদা: ৫০০" 
+                      value={editStockData.total_weight_kg}
+                      onChange={e => setEditStockData({...editStockData, total_weight_kg: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-1 block">
+                      গড় সাইজ (ইঞ্চি)
+                    </label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="উদা: ৬" 
+                      value={editStockData.avg_size_inch}
+                      onChange={e => setEditStockData({...editStockData, avg_size_inch: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsAdjustModalOpen(false)} 
+                    className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black text-sm transition-all"
+                  >
+                    বাতিল
+                  </button>
+                  <button 
+                    type="button"
+                    disabled={saving || !editStockData.species.trim() || editStockData.count === ''}
+                    onClick={handleSaveDirectEdit}
+                    className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm shadow-lg shadow-blue-200 transition-all"
+                  >
+                    {saving ? 'আপডেট হচ্ছে...' : '💾 সেভ করুন'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
